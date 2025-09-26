@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>راهنمای کامل حرم امام رضا — مسیر‌یاب داخلی</title>
+  
+  <!-- لینک‌های استایل شیت -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+  
+  <!-- >> تغییر ۱: لینک به فایل مانیفست برای PWA << -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b6"/>
+
+  <style>
+    :root{--accent:#0b6;--bg:#f7f7f8;--card:#fff}
+    html,body{height:100%;margin:0;padding:0;font-family: 'Vazirmatn', Tahoma, sans-serif;background:var(--bg);color:#222}
+    .app{display:grid;grid-template-rows:auto 1fr auto;min-height:100vh}
+    header{background:var(--card);border-bottom:1px solid #e9e9e9;padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    h1{font-size:18px;margin:0}
+    .controls{display:flex;gap:8px;align-items:center}
+    select,input,button{padding:8px;border-radius:8px;border:1px solid #dcdcdc;background:#fff; font-family: inherit;}
+    button{cursor: pointer;}
+    button:disabled{cursor: not-allowed; background-color: #eee;}
+    #swapBtn { padding: 4px 8px; font-size: 20px; border-radius: 50%; width: 36px; height: 36px; border: 1px solid #ccc; }
+    #map{height:66vh;border-top:1px solid #e6e6e6}
+    .panel{display:flex;gap:12px;padding:12px;background:var(--card);border-top:1px solid #e6e6e6}
+    .places{width:320px;max-height:56vh;overflow:auto;border:1px solid #eee;padding:8px;border-radius:8px;background:#fff}
+    .place{padding:8px;border-bottom:1px dashed #f0f0f0;cursor:pointer}
+    .place:hover{background-color: #f9f9f9;}
+    .place.active{background-color: #eaf7ff;}
+    .place h4{margin:0 0 4px 0;font-size:14px}
+    .details{flex:1;min-height:120px;padding:8px;border-radius:8px;border:1px solid #eee;background:#fff}
+    .details .actions button { margin: 8px 0 0 8px; }
+    .legend{font-size:13px;color:#666}
+    .error-msg{color: #d33; font-weight: bold;}
+    @media (max-width:900px){.panel{flex-direction:column}.places{width:100%;max-height:20vh}}
+    .leaflet-routing-container { direction: ltr; text-align: left; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div style="flex:1">
+        <h1>راهنمای کامل حرم امام رضا</h1>
+        <div style="margin-top:6px;color:#666;font-size:13px">برای مسیریابی، مبدا و مقصد را انتخاب کنید.</div>
+      </div>
+      <div class="controls">
+        <input id="search" placeholder="جستجو..." /><select id="start"></select><button id="swapBtn" title="جابجایی مبدا و مقصد">⇄</button><select id="end"></select><button id="go">نمایش مسیر</button><button id="clear">پاک کردن</button>
+      </div>
+    </header>
+    <div id="map"></div>
+    <div class="panel">
+      <div class="places" id="placesList"></div>
+      <div class="details" id="details">انتخابی انجام نشده است. روی یک مکان در فهرست کلیک کنید.</div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+  <script>
+    // ====== کد اصلی اپلیکیشن شما (بدون تغییر) ======
+    const places = [
+      { id:'sahn_enqelab', type:'صحن', name:'صحن انقلاب (عتیق)', lat:36.28805, lon:59.61560, desc:'قدیمی‌ترین صحن و نزدیک‌ترین صحن به ضریح.'},
+      { id:'sahn_azadi', type:'صحن', name:'صحن آزادی', lat:36.28860, lon:59.61630, desc:'صحن بزرگ در ضلع شرقی با ورودی‌های متعدد.'},
+      { id:'sahn_jamee', type:'صحن', name:'صحن جامع رضوی', lat:36.2872, lon:59.6151, desc:'بزرگ‌ترین صحن مجموعه در ضلع جنوبی.'},
+      { id:'sahn_jomhuri', type:'صحن', name:'صحن جمهوری اسلامی', lat:36.28790, lon:59.6145, desc:'صحن در ضلع غربی، متصل به دارالولایه.'},
+      { id:'sahn_qods', type:'صحن', name:'صحن قدس', lat:36.28750, lon:59.61520, desc:'صحن کوچک و نمادین با سقاخانهٔ بیت‌المقدس.'},
+      { id:'ravaq_imam_khomeini', type:'رواق', name:'رواق امام خمینی', lat:36.2876, lon:59.6155, desc:'رواق بزرگ متصل به صحن جامع و قدس.'},
+      { id:'bab_ol_reza', type:'باب', name:'باب‌الرضا (ورودی جنوبی)', lat:36.2868, lon:59.6150, desc:'ورودی اصلی از سمت خیابان امام رضا (ع).'},
+      { id:'golden_dome', type:'ضریح', name:'ضریح مطهر / گنبد طلا', lat:36.28805, lon:59.6157, desc:'مکان مرکزی زیارت (ضریح امام رضا)'} ,
+    ];
+    
+    const map = L.map('map', {zoomControl:true}).setView([36.28805,59.6157], 18);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:20, attribution:'© OpenStreetMap'}).addTo(map);
+
+    const markers = {}, placeLayer = L.layerGroup().addTo(map);
+    let currentRouteControl = null;
+
+    function createMarker(p){ const m = L.marker([p.lat,p.lon]).addTo(placeLayer).bindPopup(`<b>${p.name}</b><br/><small>${p.type}</small>`); m.on('click', ()=>{ handlePlaceSelection(p.id); }); markers[p.id]=m; }
+    function handlePlaceSelection(id) { showDetails(id); document.querySelectorAll('.place.active').forEach(el => el.classList.remove('active')); const el=document.querySelector(`.place[data-id="${id}"]`); if(el)el.classList.add('active'); }
+    function clearRoute() { if (currentRouteControl) { map.removeControl(currentRouteControl); currentRouteControl = null; } }
+    function addOptions(sel){ sel.innerHTML=''; const oc=document.createElement('option'); oc.value='__me'; oc.textContent='موقعیت فعلی من'; sel.appendChild(oc); const gr={}; places.forEach(p=>{if(!gr[p.type])gr[p.type]=[]; gr[p.type].push(p);}); Object.keys(gr).sort().forEach(t=>{const g=document.createElement('optgroup'); g.label=t; gr[t].forEach(p=>{const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; g.appendChild(o);}); sel.appendChild(g);});}
+    function renderList(f){ const pl=document.getElementById('placesList'); pl.innerHTML=''; const a=places.filter(p=>{if(!f)return true; return(p.name+p.type).includes(f)}); a.forEach(p=>{const e=document.createElement('div'); e.className='place'; e.dataset.id=p.id; e.innerHTML=`<h4>${p.name} <small style="color:#888;">${p.type}</small></h4><div style="font-size:13px;color:#555">${p.desc}</div>`; e.addEventListener('click',()=>{map.setView([p.lat,p.lon],19); markers[p.id].openPopup(); handlePlaceSelection(p.id);}); pl.appendChild(e);});}
+    
+    function showDetails(id){ 
+      const p = places.find(x=>x.id===id); if(!p) return; 
+      const d = document.getElementById('details'); 
+      d.innerHTML = `<h3 style="margin-top:0">${p.name}</h3><p><strong>نوع:</strong> ${p.type}</p><p>${p.desc}</p><div class="actions"><button id="dirToBtn">مسیر به اینجا</button><button id="dirFromBtn">مسیر از اینجا</button></div>`;
+      document.getElementById('dirToBtn').addEventListener('click', ()=>{document.getElementById('start').value='__me'; document.getElementById('end').value=id; showRoute();});
+      document.getElementById('dirFromBtn').addEventListener('click', ()=>{document.getElementById('start').value=id; document.getElementById('end').value='__me'; showRoute();});
+    }
+
+    async function getPosition(){
+      if (!navigator.geolocation) throw { code: -1, message: 'موقعیت‌یاب در این مرورگر پشتیبانی نمی‌شود.' };
+      return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+          err => {
+            let userMessage = 'خطا در دریافت موقعیت.';
+            if (err.code === 1) userMessage = 'شما دسترسی به موقعیت را مسدود کرده‌اید. لطفا از تنظیمات مرورگر آن را فعال کنید.';
+            if (err.code === 2) userMessage = 'سرویس موقعیت‌یاب (GPS) دستگاه شما خاموش است یا سیگنال در دسترس نیست.';
+            if (err.code === 3) userMessage = 'زمان درخواست برای دریافت موقعیت به پایان رسید. لطفا دوباره تلاش کنید.';
+            reject({ code: err.code, message: userMessage });
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+      });
+    }
+    
+    function displayError(message, isLocationError = false) {
+        const detailsPanel = document.getElementById('details');
+        let html = `<p class="error-msg"><strong>خطا:</strong> ${message}</p>`;
+        if (isLocationError) {
+            html += `<p><button id="retryRouteBtn">تلاش مجدد</button></p>`;
+        }
+        detailsPanel.innerHTML = html;
+        if (isLocationError) {
+            document.getElementById('retryRouteBtn').addEventListener('click', showRoute);
+        }
+        document.getElementById('go').disabled = false;
+        document.getElementById('go').textContent = 'نمایش مسیر';
+    }
+
+    async function showRoute(){
+      const goBtn = document.getElementById('go'), startSel = document.getElementById('start'), endSel = document.getElementById('end');
+      if (!startSel.value || !endSel.value) { displayError('لطفا مبدا و مقصد را انتخاب کنید.'); return; }
+      if (startSel.value === endSel.value) { displayError('مبدا و مقصد نمی‌توانند یکسان باشند.'); return; }
+
+      clearRoute(); 
+      goBtn.disabled = true; goBtn.textContent = 'در حال محاسبه...';
+
+      let startPoint, endPoint;
+      try {
+        let userLocation = null;
+        if (startSel.value === '__me' || endSel.value === '__me') {
+          document.getElementById('details').innerHTML = '<p>در حال دریافت موقعیت دقیق شما...</p>';
+          userLocation = await getPosition();
+        }
+        startPoint = (startSel.value === '__me') ? [userLocation.lat, userLocation.lon] : [places.find(p => p.id === startSel.value).lat, places.find(p => p.id === startSel.value).lon];
+        endPoint = (endSel.value === '__me') ? [userLocation.lat, userLocation.lon] : [places.find(p => p.id === endSel.value).lat, places.find(p => p.id === endSel.value).lon];
+      } catch (err) {
+        displayError(err.message, true);
+        return;
+      }
+      
+      const routingControl = L.Routing.control({
+        waypoints: [L.latLng(startPoint), L.latLng(endPoint)],
+        routeWhileDragging: false, showAlternatives: false, addWaypoints: false,
+        createMarker: () => null,
+      }).addTo(map);
+      
+      currentRouteControl = routingControl;
+      goBtn.disabled = false; goBtn.textContent = 'نمایش مسیر';
+
+      routingControl.on('routesfound', e => {
+        const sum = e.routes[0].summary;
+        document.getElementById('details').innerHTML = `<h3>مسیر پیدا شد</h3><p class="legend">فاصله: <strong>${Math.round(sum.totalDistance)} متر</strong> — زمان پیاده‌روی: <strong>${Math.round(sum.totalTime / 60)} دقیقه</strong></p>`;
+      });
+      routingControl.on('routingerror', () => { displayError("مسیریابی آنلاین ممکن نبود. اتصال اینترنت خود را بررسی کنید."); });
+    }
+
+    document.getElementById('go').addEventListener('click', showRoute);
+    document.getElementById('search').addEventListener('input', e => renderList(e.target.value.trim()));
+    document.getElementById('clear').addEventListener('click', ()=>{clearRoute();placeLayer.clearLayers();places.forEach(createMarker);document.getElementById('details').innerHTML='انتخابی انجام نشده است.';map.setView([36.28805, 59.6157], 18);renderList();document.querySelectorAll('.place.active').forEach(el=>el.classList.remove('active'));});
+    document.getElementById('swapBtn').addEventListener('click', ()=>{const s=document.getElementById('start'), e=document.getElementById('end'), t=s.value; s.value=e.value; e.value=t;});
+    
+    addOptions(document.getElementById('start')); addOptions(document.getElementById('end'));
+    places.forEach(createMarker); renderList();
+    markers['golden_dome'].openPopup();
+    document.getElementById('details').insertAdjacentHTML('afterbegin', '<strong>راهنما:</strong> روی یک مکان در فهرست کلیک کنید.<br/><br/>');
+  </script>
+
+  <!-- >> تغییر ۲: اسکریپت ثبت سرویس ورکر برای PWA << -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then(registration => {
+          console.log('سرویس ورکر با موفقیت ثبت شد: ', registration.scope);
+        }).catch(registrationError => {
+          console.log('ثبت سرویس ورکر با خطا مواجه شد: ', registrationError);
+        });
+      });
+    }
+  </script>
+
+</body>
+</html>
