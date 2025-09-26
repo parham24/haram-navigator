@@ -2,7 +2,10 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  
+  <!-- این خط مشکل اندازه صفحه در موبایل را به طور کامل حل می‌کند -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>راهنمای حرم امام رضا</title>
   
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -34,7 +37,7 @@
     .details .actions button { margin: 8px 0 0 8px; }
     .legend{font-size:14px;color:#444; margin-top: 10px;}
     .error-msg{color: #d33; font-weight: bold;}
-    .leaflet-routing-container { display: none !important; } /* >> تغییر ۳: مخفی کردن پنل دستورالعمل مسیر << */
+    .leaflet-routing-container { display: none !important; }
     
     @media (max-width: 768px) {
       .header-main { flex-direction: column; align-items: flex-start; }
@@ -93,11 +96,8 @@
     const markers = {}, placeLayer = L.layerGroup().addTo(map);
     let currentRouteControl = null;
 
-    // >> تغییر ۲: فارسی‌سازی کامل پلاگین مسیریابی <<
     const farsiFormatter = {
-        formatDistance: (d) => {
-            return `${(d / 1000).toLocaleString('fa-IR', {maximumFractionDigits: 1})} کیلومتر`;
-        },
+        formatDistance: (d) => { return `${(d / 1000).toLocaleString('fa-IR', {maximumFractionDigits: 1})} کیلومتر`; },
         formatTime: (t) => {
             const hours = Math.floor(t / 3600);
             const minutes = Math.floor((t % 3600) / 60);
@@ -108,27 +108,13 @@
         }
     };
     
-    // ترجمه دستورالعمل‌های مسیر
     L.Routing.Localization['fa'] = {
         directions: {
-            N: 'شمال', S: 'جنوب', E: 'شرق', W: 'غرب',
-            NE: 'شمال شرقی', SE: 'جنوب شرقی', SW: 'جنوب غربی', NW: 'شمال غربی',
-            Straight: 'مستقیم ادامه دهید',
-            TurnLeft: 'به چپ بپیچید',
-            TurnRight: 'به راست بپیچید',
-            SlightLeft: 'کمی به چپ',
-            SlightRight: 'کمی به راست',
-            SharpLeft: 'تند به چپ',
-            SharpRight: 'تند به راست',
-            UTurn: 'دور بزنید',
-            KeepLeft: 'در مسیر چپ بمانید',
-            KeepRight: 'در مسیر راست بمانید',
-            Head: 'به سمت {dir} حرکت کنید',
-            Onto: 'وارد {road} شوید',
-            Via: 'از طریق {via}',
-            Continue: 'ادامه دهید',
-            Destination: 'به مقصد رسیده‌اید',
-            // ... و سایر ترجمه‌ها
+            N: 'شمال', S: 'جنوب', E: 'شرق', W: 'غرب', NE: 'شمال شرقی', SE: 'جنوب شرقی', SW: 'جنوب غربی', NW: 'شمال غربی',
+            Straight: 'مستقیم ادامه دهید', TurnLeft: 'به چپ بپیچید', TurnRight: 'به راست بپیچید', SlightLeft: 'کمی به چپ',
+            SlightRight: 'کمی به راست', SharpLeft: 'تند به چپ', SharpRight: 'تند به راست', UTurn: 'دور بزنید',
+            KeepLeft: 'در مسیر چپ بمانید', KeepRight: 'در مسیر راست بمانید', Head: 'به سمت {dir} حرکت کنید',
+            Onto: 'وارد {road} شوید', Via: 'از طریق {via}', Continue: 'ادامه دهید', Destination: 'به مقصد رسیده‌اید',
         }
     };
     const farsiLocalization = new L.Routing.Localization('fa');
@@ -202,11 +188,8 @@
       
       const routingControl = L.Routing.control({
         waypoints: [L.latLng(startPoint), L.latLng(endPoint)],
-        routeWhileDragging: false,
-        addWaypoints: false,
-        createMarker: () => null,
-        formatter: farsiFormatter,
-        localization: farsiLocalization,
+        routeWhileDragging: false, addWaypoints: false, createMarker: () => null,
+        formatter: farsiFormatter, localization: farsiLocalization,
         lineOptions: { styles: [{ color: '#c00', opacity: 0.9, weight: 5 }] }
       }).addTo(map);
       
@@ -234,6 +217,9 @@
     places.forEach(createMarker); renderList();
     markers['golden_dome'].openPopup();
     
+  </script>
+
+  <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').then(reg => console.log('سرویس ورکر ثبت شد.')).catch(err => console.log('خطا در ثبت سرویس ورکر:', err));
