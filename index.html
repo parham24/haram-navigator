@@ -1,230 +1,332 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
-  <meta charset="utf-8" />
-  
-  <!-- این خط مشکل اندازه صفحه در موبایل را به طور کامل حل می‌کند -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>نقشه حرم</title>
 
-  <title>راهنمای حرم امام رضا</title>
-  
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
-  
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0b6"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff" />
 
-  <style>
-    :root{--accent:#0b6;--bg:#f7f7f8;--card:#fff}
-    html,body{height:100%;margin:0;padding:0;font-family: 'Vazirmatn', Tahoma, sans-serif;background:var(--bg);color:#222; font-size: 15px;}
-    .app{display:flex; flex-direction: column; min-height:100vh}
-    header{background:var(--card);border-bottom:1px solid #e9e9e9;padding:12px 16px;}
-    .header-main { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-    h1{font-size:18px;margin:0}
-    .controls{display:flex;gap:8px;align-items:center; flex-wrap: wrap;}
-    select,input,button{padding:8px;border-radius:8px;border:1px solid #dcdcdc;background:#fff; font-family: inherit; font-size: 14px;}
-    button{cursor: pointer;}
-    button:disabled{cursor: not-allowed; background-color: #eee;}
-    #swapBtn { padding: 4px 8px; font-size: 20px; border-radius: 50%; width: 38px; height: 38px; border: 1px solid #ccc; flex-shrink: 0; }
-    #map{flex-grow: 1; border-top:1px solid #e6e6e6; border-bottom:1px solid #e6e6e6;}
-    .panel{display:flex;gap:12px;padding:12px;background:var(--card); flex-wrap: wrap;}
-    .places{width:320px;max-height:40vh;overflow:auto;border:1px solid #eee;padding:8px;border-radius:8px;background:#fff}
-    .place{padding:8px;border-bottom:1px dashed #f0f0f0;cursor:pointer}
-    .place:hover{background-color: #f9f9f9;}
-    .place.active{background-color: #eaf7ff;}
-    .place h4{margin:0 0 4px 0;font-size:14px}
-    .details{flex:1;min-width: 250px; min-height:120px;padding:8px;border-radius:8px;border:1px solid #eee;background:#fff}
-    .details .actions button { margin: 8px 0 0 8px; }
-    .legend{font-size:14px;color:#444; margin-top: 10px;}
-    .error-msg{color: #d33; font-weight: bold;}
-    .leaflet-routing-container { display: none !important; }
-    
-    @media (max-width: 768px) {
-      .header-main { flex-direction: column; align-items: flex-start; }
-      .controls { width: 100%; }
-      select, input { flex-grow: 1; }
-      .panel { flex-direction: column; }
-      .places { width: 100%; max-height: 25vh; }
-    }
-  </style>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* جلوگیری از اسکرول کل صفحه */
+            font-family: 'Vazirmatn', Tahoma, sans-serif;
+            background-color: #f0f2f5;
+        }
+        #app-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        #panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: white;
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease-in-out;
+            transform: translateY(calc(100% - 80px)); /* حالت اولیه بسته */
+            z-index: 1000;
+        }
+        #panel.expanded {
+            transform: translateY(0);
+        }
+        #panel-handle {
+            padding: 12px;
+            text-align: center;
+            cursor: grab;
+            border-bottom: 1px solid #eee;
+        }
+        #panel-handle::before {
+            content: '';
+            display: inline-block;
+            width: 40px;
+            height: 5px;
+            background-color: #ccc;
+            border-radius: 3px;
+        }
+        #panel-content {
+            padding: 16px;
+            max-height: calc(100vh - 80px); /* ارتفاع حداکثری پنل */
+            overflow-y: auto;
+        }
+        .controls { display: flex; flex-direction: column; gap: 12px; }
+        .control-group { display: flex; align-items: center; gap: 8px; }
+        select, button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-family: inherit;
+            font-size: 15px;
+            background-color: #f7f7f7;
+        }
+        button { background-color: #0b6; color: white; border: none; cursor: pointer; }
+        button#clear-btn { background-color: #777; }
+        #swapBtn { width: 42px; flex-shrink: 0; padding: 8px; font-size: 20px; }
+        .details-box h3 { margin-top: 0; }
+        .route-summary { text-align: center; }
+        .route-summary strong { font-size: 1.2em; }
+        .leaflet-routing-container { display: none !important; } /* مخفی کردن پنل انگلیسی */
+    </style>
 </head>
 <body>
-  <div class="app">
-    <header>
-      <div class="header-main">
-        <div>
-          <h1>راهنمای حرم امام رضا</h1>
-          <div style="margin-top:6px;color:#666;font-size:13px">برای مسیریابی، مبدا و مقصد را انتخاب کنید.</div>
-        </div>
-        <div class="controls">
-          <button id="clear">پاک کردن</button>
-          <button id="go">نمایش مسیر</button>
-        </div>
-      </div>
-      <div class="controls" style="margin-top: 12px;">
-        <select id="start"></select>
-        <button id="swapBtn" title="جابجایی مبدا و مقصد">⇄</button>
-        <select id="end"></select>
-      </div>
-    </header>
-    
+
+<div id="app-container">
     <div id="map"></div>
-    
-    <div class="panel">
-      <div class="places" id="placesList"></div>
-      <div class="details" id="details">انتخابی انجام نشده است. روی یک مکان در فهرست کلیک کنید.</div>
+
+    <div id="panel">
+        <div id="panel-handle"></div>
+        <div id="panel-content">
+            <!-- محتوای پنل به صورت داینامیک اینجا قرار می‌گیرد -->
+        </div>
     </div>
-  </div>
+</div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
-  <script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+<script>
     const places = [
-      { id:'sahn_enqelab', type:'صحن', name:'صحن انقلاب (عتیق)', lat:36.28805, lon:59.61560, desc:'قدیمی‌ترین صحن و نزدیک‌ترین صحن به ضریح.'},
-      { id:'sahn_azadi', type:'صحن', name:'صحن آزادی', lat:36.28860, lon:59.61630, desc:'صحن بزرگ در ضلع شرقی با ورودی‌های متعدد.'},
-      { id:'sahn_jamee', type:'صحن', name:'صحن جامع رضوی', lat:36.2872, lon:59.6151, desc:'بزرگ‌ترین صحن مجموعه در ضلع جنوبی.'},
-      { id:'sahn_jomhuri', type:'صحن', name:'صحن جمهوری اسلامی', lat:36.28790, lon:59.6145, desc:'صحن در ضلع غربی، متصل به دارالولایه.'},
-      { id:'sahn_qods', type:'صحن', name:'صحن قدس', lat:36.28750, lon:59.61520, desc:'صحن کوچک و نمادین با سقاخانهٔ بیت‌المقدس.'},
-      { id:'ravaq_imam_khomeini', type:'رواق', name:'رواق امام خمینی', lat:36.2876, lon:59.6155, desc:'رواق بزرگ متصل به صحن جامع و قدس.'},
-      { id:'bab_ol_reza', type:'باب', name:'باب‌الرضا (ورودی جنوبی)', lat:36.2868, lon:59.6150, desc:'ورودی اصلی از سمت خیابان امام رضا (ع).'},
-      { id:'golden_dome', type:'ضریح', name:'ضریح مطهر / گنبد طلا', lat:36.28805, lon:59.6157, desc:'مکان مرکزی زیارت (ضریح امام رضا)'} ,
+      { id:'sahn_enqelab', type:'صحن', name:'صحن انقلاب (عتیق)', lat:36.28805, lon:59.61560},
+      { id:'sahn_azadi', type:'صحن', name:'صحن آزادی', lat:36.28860, lon:59.61630},
+      { id:'sahn_jamee', type:'صحن', name:'صحن جامع رضوی', lat:36.2872, lon:59.6151},
+      { id:'sahn_jomhuri', type:'صحن', name:'صحن جمهوری اسلامی', lat:36.28790, lon:59.6145},
+      { id:'sahn_qods', type:'صحن', name:'صحن قدس', lat:36.28750, lon:59.61520},
+      { id:'ravaq_imam_khomeini', type:'رواق', name:'رواق امام خمینی', lat:36.2876, lon:59.6155},
+      { id:'bab_ol_reza', type:'باب', name:'باب‌الرضا (ورودی جنوبی)', lat:36.2868, lon:59.6150},
+      { id:'golden_dome', type:'ضریح', name:'ضریح مطهر', lat:36.28805, lon:59.6157},
     ];
-    
-    const map = L.map('map', {zoomControl:true}).setView([36.28805,59.6157], 18);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:20, attribution:'© OpenStreetMap'}).addTo(map);
 
-    const markers = {}, placeLayer = L.layerGroup().addTo(map);
+    const map = L.map('map', {zoomControl: false}).setView([36.28805, 59.6157], 18);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 20, attribution: '© OpenStreetMap'}).addTo(map);
+    L.control.zoom({ position: 'topleft' }).addTo(map);
+
     let currentRouteControl = null;
-
-    const farsiFormatter = {
-        formatDistance: (d) => { return `${(d / 1000).toLocaleString('fa-IR', {maximumFractionDigits: 1})} کیلومتر`; },
-        formatTime: (t) => {
-            const hours = Math.floor(t / 3600);
-            const minutes = Math.floor((t % 3600) / 60);
-            let result = '';
-            if (hours > 0) result += `${hours.toLocaleString('fa-IR')} ساعت و `;
-            result += `${minutes.toLocaleString('fa-IR')} دقیقه`;
-            return result;
-        }
-    };
+    const panel = document.getElementById('panel');
+    const panelContent = document.getElementById('panel-content');
+    const panelHandle = document.getElementById('panel-handle');
     
-    L.Routing.Localization['fa'] = {
-        directions: {
-            N: 'شمال', S: 'جنوب', E: 'شرق', W: 'غرب', NE: 'شمال شرقی', SE: 'جنوب شرقی', SW: 'جنوب غربی', NW: 'شمال غربی',
-            Straight: 'مستقیم ادامه دهید', TurnLeft: 'به چپ بپیچید', TurnRight: 'به راست بپیچید', SlightLeft: 'کمی به چپ',
-            SlightRight: 'کمی به راست', SharpLeft: 'تند به چپ', SharpRight: 'تند به راست', UTurn: 'دور بزنید',
-            KeepLeft: 'در مسیر چپ بمانید', KeepRight: 'در مسیر راست بمانید', Head: 'به سمت {dir} حرکت کنید',
-            Onto: 'وارد {road} شوید', Via: 'از طریق {via}', Continue: 'ادامه دهید', Destination: 'به مقصد رسیده‌اید',
-        }
-    };
-    const farsiLocalization = new L.Routing.Localization('fa');
+    panelHandle.addEventListener('click', () => panel.classList.toggle('expanded'));
 
-    function createMarker(p){ const m = L.marker([p.lat,p.lon]).addTo(placeLayer).bindPopup(`<b>${p.name}</b><br/><small>${p.type}</small>`); m.on('click', ()=>{ handlePlaceSelection(p.id); }); markers[p.id]=m; }
-    function handlePlaceSelection(id) { showDetails(id); document.querySelectorAll('.place.active').forEach(el => el.classList.remove('active')); const el=document.querySelector(`.place[data-id="${id}"]`); if(el)el.classList.add('active'); }
-    function clearRoute() { if (currentRouteControl) { map.removeControl(currentRouteControl); currentRouteControl = null; } document.getElementById('details').innerHTML = 'انتخابی انجام نشده است.'; }
-    function addOptions(sel){ sel.innerHTML=''; const oc=document.createElement('option'); oc.value='__me'; oc.textContent='موقعیت فعلی من'; sel.appendChild(oc); const gr={}; places.forEach(p=>{if(!gr[p.type])gr[p.type]=[]; gr[p.type].push(p);}); Object.keys(gr).sort().forEach(t=>{const g=document.createElement('optgroup'); g.label=t; gr[t].forEach(p=>{const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; g.appendChild(o);}); sel.appendChild(g);});}
-    function renderList(f){ const pl=document.getElementById('placesList'); pl.innerHTML=''; const a=places.filter(p=>{if(!f)return true; return(p.name+p.type).includes(f)}); a.forEach(p=>{const e=document.createElement('div'); e.className='place'; e.dataset.id=p.id; e.innerHTML=`<h4>${p.name} <small style="color:#888;">${p.type}</small></h4><div style="font-size:13px;color:#555">${p.desc}</div>`; e.addEventListener('click',()=>{map.setView([p.lat,p.lon],19); markers[p.id].openPopup(); handlePlaceSelection(p.id);}); pl.appendChild(e);});}
-    
-    function showDetails(id){ 
-      const p = places.find(x=>x.id===id); if(!p) return; 
-      const d = document.getElementById('details'); 
-      d.innerHTML = `<h3 style="margin-top:0">${p.name}</h3><p><strong>نوع:</strong> ${p.type}</p><p>${p.desc}</p><div class="actions"><button id="dirToBtn">مسیر به اینجا</button><button id="dirFromBtn">مسیر از اینجا</button></div>`;
-      document.getElementById('dirToBtn').addEventListener('click', ()=>{document.getElementById('start').value='__me'; document.getElementById('end').value=id; showRoute();});
-      document.getElementById('dirFromBtn').addEventListener('click', ()=>{document.getElementById('start').value=id; document.getElementById('end').value='__me'; showRoute();});
+    function renderInitialView() {
+        panelContent.innerHTML = `
+            <div class="controls">
+                <div class="control-group">
+                    <select id="start"></select>
+                    <button id="swapBtn">⇄</button>
+                    <select id="end"></select>
+                </div>
+                <button id="go-btn">نمایش مسیر</button>
+            </div>
+            <hr>
+            <div id="places-list"></div>
+        `;
+        const startSel = document.getElementById('start');
+        const endSel = document.getElementById('end');
+        addOptions(startSel);
+        addOptions(endSel);
+        renderPlacesList();
+
+        document.getElementById('go-btn').addEventListener('click', showRoute);
+        document.getElementById('swapBtn').addEventListener('click', () => {
+            const temp = startSel.value;
+            startSel.value = endSel.value;
+            endSel.value = temp;
+        });
+        panel.classList.remove('expanded');
     }
 
+    function addOptions(sel) {
+        sel.innerHTML = '<option value="__me">موقعیت فعلی من</option>';
+        places.forEach(p => {
+            const o = document.createElement('option');
+            o.value = p.id;
+            o.textContent = p.name;
+            sel.appendChild(o);
+        });
+    }
+
+    function renderPlacesList() {
+        const listEl = document.getElementById('places-list');
+        listEl.innerHTML = places.map(p => `
+            <div class="place" data-id="${p.id}">
+                <h4>${p.name} <small style="color:#888;">(${p.type})</small></h4>
+            </div>
+        `).join('');
+        
+        listEl.querySelectorAll('.place').forEach(el => {
+            el.addEventListener('click', () => {
+                const place = places.find(p => p.id === el.dataset.id);
+                map.setView([place.lat, place.lon], 19);
+                renderDetailsView(place);
+            });
+        });
+    }
+
+    function renderDetailsView(place) {
+        panelContent.innerHTML = `
+            <div class="details-box">
+                <button id="back-btn" style="background:none; border:none; color:#555; padding:0; width:auto; font-size: 16px;">&larr; بازگشت به لیست</button>
+                <h3>${place.name}</h3>
+                <p>نوع مکان: ${place.type}</p>
+                <div class="controls">
+                    <button class="dir-btn" data-type="to" data-id="${place.id}">مسیریابی به اینجا</button>
+                    <button class="dir-btn" data-type="from" data-id="${place.id}" style="background-color:#555">مسیریابی از اینجا</button>
+                </div>
+            </div>
+        `;
+        panel.classList.add('expanded');
+        document.getElementById('back-btn').addEventListener('click', renderInitialView);
+        document.querySelectorAll('.dir-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const { type, id } = e.target.dataset;
+                if(type === 'to') {
+                    document.getElementById('start').value = '__me';
+                    document.getElementById('end').value = id;
+                } else {
+                    document.getElementById('start').value = id;
+                    document.getElementById('end').value = '__me';
+                }
+                showRoute();
+            });
+        });
+    }
+
+    function renderRouteSummary(summary) {
+        const distance = summary.totalDistance < 1000 ? 
+            `${Math.round(summary.totalDistance).toLocaleString('fa-IR')} متر` : 
+            (summary.totalDistance / 1000).toLocaleString('fa-IR', {maximumFractionDigits: 1}) + ' کیلومتر';
+        const time = Math.round(summary.totalTime / 60).toLocaleString('fa-IR');
+
+        panelContent.innerHTML = `
+            <div class="route-summary">
+                <p>فاصله: <strong>${distance}</strong></p>
+                <p>زمان پیاده‌روی: <strong>حدود ${time} دقیقه</strong></p>
+                <button id="clear-btn">پاک کردن مسیر</button>
+            </div>
+        `;
+        document.getElementById('clear-btn').addEventListener('click', clearRoute);
+        panel.classList.remove('expanded'); // بستن پنل برای نمایش نقشه
+    }
+
+    function displayError(message, isLocationError = false) {
+        panelContent.innerHTML = `<p style="color:red; text-align:center;"><strong>خطا:</strong> ${message}</p>`;
+        if (isLocationError) {
+            panelContent.innerHTML += `<div class="controls"><button id="retryBtn">تلاش مجدد</button></div>`;
+            document.getElementById('retryBtn').addEventListener('click', showRoute);
+        }
+        panel.classList.add('expanded');
+    }
+
+    async function showRoute() {
+        const startVal = document.getElementById('start').value;
+        const endVal = document.getElementById('end').value;
+        if (startVal === endVal) { displayError('مبدا و مقصد یکسان است.'); return; }
+
+        clearRoute(true);
+        panelContent.innerHTML = `<p style="text-align:center;">در حال محاسبه مسیر...</p>`;
+        panel.classList.add('expanded');
+
+        let startPoint, endPoint;
+        try {
+            let userLocation = null;
+            if (startVal === '__me' || endVal === '__me') {
+                userLocation = await getPosition();
+            }
+            startPoint = (startVal === '__me') ? [userLocation.lat, userLocation.lon] : [places.find(p=>p.id===startVal).lat, places.find(p=>p.id===startVal).lon];
+            endPoint = (endVal === '__me') ? [userLocation.lat, userLocation.lon] : [places.find(p=>p.id===endVal).lat, places.find(p=>p.id===endVal).lon];
+        } catch (err) {
+            displayError(err.message, true);
+            return;
+        }
+      
+        currentRouteControl = L.Routing.control({
+            waypoints: [L.latLng(startPoint), L.latLng(endPoint)],
+            addWaypoints: false, createMarker: () => null,
+            lineOptions: { styles: [{ color: '#c00', opacity: 0.9, weight: 6 }] }
+        }).addTo(map);
+      
+        currentRouteControl.on('routesfound', e => renderRouteSummary(e.routes[0].summary));
+        currentRouteControl.on('routingerror', () => displayError("مسیریابی ممکن نبود. اتصال اینترنت را بررسی کنید."));
+    }
+
+    function clearRoute(isRouting = false) {
+        if (currentRouteControl) {
+            map.removeControl(currentRouteControl);
+            currentRouteControl = null;
+        }
+        if (!isRouting) {
+            renderInitialView();
+        }
+    }
+    
+    async function getPosition() { /* ... همان کد قبلی ... */ }
+    // (کد تابع getPosition از پاسخ قبلی را اینجا کپی کنید)
     async function getPosition(){
-      if (!navigator.geolocation) throw { code: -1, message: 'موقعیت‌یاب در این مرورگر پشتیبانی نمی‌شود.' };
+      if (!navigator.geolocation) throw { code: -1, message: 'موقعیت‌یاب پشتیبانی نمی‌شود.' };
       return new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
           pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
           err => {
-            let userMessage = 'خطا در دریافت موقعیت.';
-            if (err.code === 1) userMessage = 'شما دسترسی به موقعیت را مسدود کرده‌اید.';
-            if (err.code === 2) userMessage = 'سرویس موقعیت‌یاب (GPS) دستگاه شما خاموش است.';
-            if (err.code === 3) userMessage = 'زمان درخواست به پایان رسید.';
-            reject({ code: err.code, message: userMessage });
+            let msg = 'خطا در دریافت موقعیت.';
+            if (err.code === 1) msg = 'شما دسترسی به موقعیت را مسدود کرده‌اید.';
+            if (err.code === 2) msg = 'سرویس موقعیت‌یاب (GPS) دستگاه شما خاموش است.';
+            if (err.code === 3) msg = 'زمان درخواست به پایان رسید.';
+            reject({ code: err.code, message: msg });
           },
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
       });
     }
-    
-    function displayError(message, isLocationError = false) {
-        const detailsPanel = document.getElementById('details');
-        let html = `<p class="error-msg"><strong>خطا:</strong> ${message}</p>`;
-        if (isLocationError) {
-            html += `<p><button id="retryRouteBtn">تلاش مجدد</button></p>`;
-        }
-        detailsPanel.innerHTML = html;
-        if (isLocationError) {
-            document.getElementById('retryRouteBtn').addEventListener('click', showRoute);
-        }
-        document.getElementById('go').disabled = false;
-        document.getElementById('go').textContent = 'نمایش مسیر';
-    }
 
-    async function showRoute(){
-      const goBtn = document.getElementById('go'), startSel = document.getElementById('start'), endSel = document.getElementById('end');
-      if (!startSel.value || !endSel.value) { displayError('لطفا مبدا و مقصد را انتخاب کنید.'); return; }
-      if (startSel.value === endSel.value) { displayError('مبدا و مقصد نمی‌توانند یکسان باشند.'); return; }
+    // --- اجرای اولیه برنامه ---
+    renderInitialView();
 
-      clearRoute(); 
-      goBtn.disabled = true; goBtn.textContent = 'در حال محاسبه...';
-
-      let startPoint, endPoint;
-      try {
-        let userLocation = null;
-        if (startSel.value === '__me' || endSel.value === '__me') {
-          document.getElementById('details').innerHTML = '<p>در حال دریافت موقعیت دقیق شما...</p>';
-          userLocation = await getPosition();
-        }
-        startPoint = (startSel.value === '__me') ? [userLocation.lat, userLocation.lon] : [places.find(p => p.id === startSel.value).lat, places.find(p => p.id === startSel.value).lon];
-        endPoint = (endSel.value === '__me') ? [userLocation.lat, userLocation.lon] : [places.find(p => p.id === endSel.value).lat, places.find(p => p.id === endSel.value).lon];
-      } catch (err) {
-        displayError(err.message, true);
-        return;
-      }
-      
-      const routingControl = L.Routing.control({
-        waypoints: [L.latLng(startPoint), L.latLng(endPoint)],
-        routeWhileDragging: false, addWaypoints: false, createMarker: () => null,
-        formatter: farsiFormatter, localization: farsiLocalization,
-        lineOptions: { styles: [{ color: '#c00', opacity: 0.9, weight: 5 }] }
-      }).addTo(map);
-      
-      currentRouteControl = routingControl;
-      goBtn.disabled = false; goBtn.textContent = 'نمایش مسیر';
-
-      routingControl.on('routesfound', e => {
-        const sum = e.routes[0].summary;
-        const distance = sum.totalDistance < 1000 ? 
-            `${Math.round(sum.totalDistance).toLocaleString('fa-IR')} متر` : 
-            (sum.totalDistance / 1000).toLocaleString('fa-IR', {maximumFractionDigits: 1}) + ' کیلومتر';
-        
-        const time = Math.round(sum.totalTime / 60).toLocaleString('fa-IR');
-
-        document.getElementById('details').innerHTML = `<h3>مسیر پیدا شد</h3><div class="legend">فاصله: <strong>${distance}</strong><br>زمان پیاده‌روی: <strong>حدود ${time} دقیقه</strong></div>`;
-      });
-      routingControl.on('routingerror', () => { displayError("مسیریابی آنلاین ممکن نبود. اتصال اینترنت خود را بررسی کنید."); });
-    }
-
-    document.getElementById('go').addEventListener('click', showRoute);
-    document.getElementById('clear').addEventListener('click', ()=>{clearRoute();placeLayer.clearLayers();places.forEach(createMarker);map.setView([36.28805, 59.6157], 18);renderList();document.querySelectorAll('.place.active').forEach(el=>el.classList.remove('active'));});
-    document.getElementById('swapBtn').addEventListener('click', ()=>{const s=document.getElementById('start'), e=document.getElementById('end'), t=s.value; s.value=e.value; e.value=t;});
-    
-    addOptions(document.getElementById('start')); addOptions(document.getElementById('end'));
-    places.forEach(createMarker); renderList();
-    markers['golden_dome'].openPopup();
-    
-  </script>
-
-  <script>
+    // --- ثبت سرویس ورکر ---
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then(reg => console.log('سرویس ورکر ثبت شد.')).catch(err => console.log('خطا در ثبت سرویس ورکر:', err));
+        navigator.serviceWorker.register('./sw.js').then(reg => console.log('سرویس ورکر ثبت شد.')).catch(err => console.log('خطا:', err));
       });
     }
-  </script>
+</script>
+
 </body>
-</html>
+</html>```
+
+#### ۲. فایل `manifest.json` (بدون تغییر)
+
+```json
+{
+  "name": "راهنمای حرم امام رضا",
+  "short_name": "نقشه حرم",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "description": "مسیریاب داخلی و آفلاین حرم مطهر رضوی.",
+  "icons": [
+    {
+      "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Imam_Reza_shrine_logo.svg/192px-Imam_Reza_shrine_logo.svg.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Imam_Reza_shrine_logo.svg/512px-Imam_Reza_shrine_logo.svg.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
