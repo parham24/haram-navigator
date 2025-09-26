@@ -1,5 +1,5 @@
 // نام انبار (Cache) ما. اگر خواستید برنامه را آپدیت کنید، این نام را تغییر دهید.
-const CACHE_NAME = 'haram-map-v1';
+const CACHE_NAME = 'haram-map-v2';
 
 // لیستی از تمام فایل‌های اصلی که باید در همان ابتدا ذخیره شوند.
 const urlsToCache = [
@@ -55,4 +55,5 @@ self.addEventListener('fetch', event => {
         );
       })
   );
+
 });
