@@ -128,31 +128,16 @@
         }
     }
     
-    // >> راه حل: بازنویسی کامل این تابع <<
     function drawExternalPath(startLatLng, endLatLng) {
         return new Promise((resolve, reject) => {
-            const router = L.Routing.osrmv1({
-                serviceUrl: 'https://router.project-osrm.org/route/v1',
-                profile: 'foot'
-            });
-            
-            router.route([
-                L.latLng(startLatLng),
-                L.latLng(endLatLng)
-            ], (err, routes) => {
-                if (err) {
-                    reject(new Error("مسیریابی آنلاین ممکن نبود."));
-                    return;
-                }
+            const router = L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1', profile: 'foot' });
+            router.route([ L.latLng(startLatLng), L.latLng(endLatLng) ], (err, routes) => {
+                if (err) { reject(new Error("مسیریابی آنلاین ممکن نبود.")); return; }
                 if (routes && routes.length > 0) {
-                    const line = L.Routing.line(routes[0], {
-                        styles: [{ color: '#c00', opacity: 0.9, weight: 6 }]
-                    });
+                    const line = L.Routing.line(routes[0], { styles: [{ color: '#c00', opacity: 0.9, weight: 6 }] });
                     routeLayers.addLayer(line);
                     resolve();
-                } else {
-                    reject(new Error("هیچ مسیری یافت نشد."));
-                }
+                } else { reject(new Error("هیچ مسیری یافت نشد.")); }
             });
         });
     }
@@ -235,8 +220,11 @@
     function renderTappedLocationView(tappedPoint, nearestPlace) {
         const title = nearestPlace ? nearestPlace.name : "نقطه انتخاب شده";
         panelContent.innerHTML = `<h3>${title}</h3><div class="controls"><button id="route-to-btn">مسیر به اینجا</button><button id="route-from-btn" class="secondary">مسیر از اینجا</button><button id="cancel-btn" class="secondary" style="background-color: #cc0000;">انصراف</button></div>`;
+        
+        // >> راه حل: تصحیح lng به lon <<
         document.getElementById('route-to-btn').addEventListener('click', () => showRoute({ lat: tappedPoint.lat, lon: tappedPoint.lng }, 'to'));
         document.getElementById('route-from-btn').addEventListener('click', () => showRoute({ lat: tappedPoint.lat, lon: tappedPoint.lng }, 'from'));
+
         document.getElementById('cancel-btn').addEventListener('click', hidePanel);
         panel.classList.add('visible');
     }
