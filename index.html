@@ -35,11 +35,20 @@
         p { margin: 0; color: #555; }
         
         #locate-btn {
-            position: absolute; bottom: 20px; right: 20px;
-            width: 50px; height: 50px; background-color: white;
-            border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-            z-index: 1000; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; border: none;
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background-color: white;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: none;
         }
         #locate-btn svg { width: 24px; height: 24px; fill: #333; }
 
@@ -205,7 +214,7 @@
             const latlng = [userLocation.lat, userLocation.lon];
             
             if (!userMarker) {
-                // >> راه حل: حذف گزینه اشتباه 'iconSize' از اینجا <<
+                // >> راه حل قطعی: گزینه اشتباه 'iconSize' از اینجا حذف شده است <<
                 const userIcon = L.divIcon({ className: 'user-marker' });
                 userMarker = L.marker(latlng, { icon: userIcon }).addTo(map);
             }
