@@ -74,7 +74,6 @@
       { id:'sahn_qods', type:'صحن', name:'صحن قدس', lat:36.28750, lon:59.61520},
       { id:'ravaq_imam', type:'رواق', name:'رواق امام خمینی', lat:36.2876, lon:59.6155},
       { id:'golden_dome', type:'ضریح', name:'ضریح مطهر', lat:36.28805, lon:59.6157},
-      // ورودی‌ها را با نوع 'باب' مشخص می‌کنیم
       { id:'bab_reza', type:'باب', name:'باب‌الرضا (ورودی جنوبی)', lat:36.2868, lon:59.6150},
       { id:'bab_javad', type:'باب', name:'باب‌الجواد (ورودی غربی)', lat:36.2874, lon:59.6144},
       { id:'bab_tabarsi', type:'باب', name:'ورودی طبرسی (شمالی)', lat:36.2895, lon:59.615},
@@ -101,8 +100,7 @@
 
     map.on('click', onMapClick);
     locateBtn.addEventListener('click', locateUser);
-    
-    // --- منطق اصلی مسیریابی (بازنویسی شده) ---
+
     async function showRoute(tappedLocation, direction) {
         clearRoute();
         panelContent.innerHTML = `<p>در حال محاسبه مسیر...</p>`;
@@ -117,21 +115,15 @@
             const endNode = direction === 'to' ? tappedPoint : userPoint;
 
             if (startNode.isInside && endNode.isInside) {
-                // سناریو ۱: مسیر کاملا داخلی
                 const startPlace = findNearestPlace(L.latLng(startNode.lat, startNode.lon));
                 const endPlace = findNearestPlace(L.latLng(endNode.lat, endNode.lon));
                 drawInternalPath(startPlace.id, endPlace.id);
             } else if (!startNode.isInside && endNode.isInside) {
-                // سناریو ۲: از بیرون به داخل (مهم‌ترین حالت)
                 const nearestEntrance = findNearestEntrance(L.latLng(startNode.lat, startNode.lon));
                 const endPlace = findNearestPlace(L.latLng(endNode.lat, endNode.lon));
-                
-                // مرحله اول: از بیرون به ورودی
                 drawExternalPath([startNode.lat, startNode.lon], [nearestEntrance.lat, nearestEntrance.lon]);
-                // مرحله دوم: از ورودی به داخل
                 drawInternalPath(nearestEntrance.id, endPlace.id, true);
             } else {
-                // سناریو ۳: سایر مسیرها (مثلا از داخل به بیرون یا بیرون به بیرون)
                 drawExternalPath([startNode.lat, startNode.lon], [endNode.lat, endNode.lon]);
             }
             hidePanel();
@@ -142,7 +134,7 @@
     }
 
     function drawExternalPath(startLatLng, endLatLng) {
-        const routingControl = L.Routing.control({
+        L.Routing.control({
             waypoints: [L.latLng(startLatLng), L.latLng(endLatLng)],
             addWaypoints: false, createMarker: () => null,
             lineOptions: { styles: [{ color: '#c00', opacity: 0.9, weight: 6 }] },
@@ -159,7 +151,6 @@
             });
             const options = { color: '#c00', weight: 6, opacity: 0.8 };
             if (isDashed) options.dashArray = '10, 10';
-            
             const polyline = L.polyline(latlngs, options).addTo(routeLayers);
             map.fitBounds(polyline.getBounds(), {padding: [50, 50]});
         }
@@ -212,13 +203,16 @@
         try {
             const userLocation = await getPosition();
             const latlng = [userLocation.lat, userLocation.lon];
+            
             if (!userMarker) {
+                // >> راه حل: حذف گزینه اشتباه 'iconSize' از اینجا <<
                 const userIcon = L.divIcon({ className: 'user-marker' });
                 userMarker = L.marker(latlng, { icon: userIcon }).addTo(map);
             }
             userMarker.setLatLng(latlng);
             map.flyTo(latlng, 18);
             hidePanel();
+
         } catch (err) {
             panel.classList.add('visible');
             panelContent.innerHTML = `<p style="color:red"><b>خطا:</b> ${err.message}</p>`;
