@@ -12,9 +12,24 @@
 
     <style>
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: 'Vazirmatn', Tahoma, sans-serif; }
+        
+        /* >> بخش جدید: استایل پنل دیباگ << */
+        #debug-log {
+            position: absolute; top: 0; left: 0; right: 0;
+            background-color: rgba(0,0,0,0.8);
+            color: white;
+            padding: 5px 10px;
+            font-size: 12px;
+            font-family: monospace;
+            z-index: 2000;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        #debug-log p { margin: 2px 0; }
+        #debug-log .error { color: red; font-weight: bold; }
+
         #app-container { position: relative; width: 100%; height: 100%; }
         #map { width: 100%; height: 100%; background: #eee; }
-        
         #panel {
             position: absolute; bottom: 0; left: 0; right: 0;
             background-color: white; border-top-left-radius: 16px; border-top-right-radius: 16px;
@@ -33,25 +48,14 @@
         button.secondary { background-color: #777; }
         h3 { margin-top: 0; margin-bottom: 8px; }
         p { margin: 0; color: #555; }
-        
         #locate-btn {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 50px;
-            height: 50px;
-            background-color: white;
-            border-radius: 50%;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            border: none;
+            position: absolute; bottom: 20px; right: 20px;
+            width: 50px; height: 50px; background-color: white;
+            border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            z-index: 1000; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; border: none;
         }
         #locate-btn svg { width: 24px; height: 24px; fill: #333; }
-
         .leaflet-routing-container { display: none !important; }
         .user-marker {
             width: 20px; height: 20px; background-color: #007aff;
@@ -61,6 +65,11 @@
     </style>
 </head>
 <body>
+
+<!-- >> بخش جدید: پنل دیباگ << -->
+<div id="debug-log">
+    <p>در حال آماده‌سازی برنامه...</p>
+</div>
 
 <div id="app-container">
     <div id="map"></div>
@@ -75,96 +84,158 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 <script>
-    const places = [
-      { id:'sahn_enqelab', type:'صحن', name:'صحن انقلاب', lat:36.28805, lon:59.61560},
-      { id:'sahn_azadi', type:'صحن', name:'صحن آزادی', lat:36.28860, lon:59.61630},
-      { id:'sahn_jamee', type:'صحن', name:'صحن جامع رضوی', lat:36.2872, lon:59.6151},
-      { id:'sahn_jomhuri', type:'صحن', name:'صحن جمهوری', lat:36.28790, lon:59.6145},
-      { id:'sahn_qods', type:'صحن', name:'صحن قدس', lat:36.28750, lon:59.61520},
-      { id:'ravaq_imam', type:'رواق', name:'رواق امام خمینی', lat:36.2876, lon:59.6155},
-      { id:'golden_dome', type:'ضریح', name:'ضریح مطهر', lat:36.28805, lon:59.6157},
-      { id:'bab_reza', type:'باب', name:'باب‌الرضا (ورودی جنوبی)', lat:36.2868, lon:59.6150},
-      { id:'bab_javad', type:'باب', name:'باب‌الجواد (ورودی غربی)', lat:36.2874, lon:59.6144},
-      { id:'bab_tabarsi', type:'باب', name:'ورودی طبرسی (شمالی)', lat:36.2895, lon:59.615},
-      { id:'bab_shirazi', type:'باب', name:'ورودی شیرازی (شمال غربی)', lat:36.2888, lon:59.6143},
-    ];
+    // >> بخش جدید: تابع لاگ‌برداری <<
+    const logDiv = document.getElementById('debug-log');
+    function log(message, isError = false) {
+        const p = document.createElement('p');
+        p.textContent = `> ${message}`;
+        if (isError) {
+            p.classList.add('error');
+        }
+        logDiv.appendChild(p);
+        logDiv.scrollTop = logDiv.scrollHeight; // اسکرول به آخرین پیام
+    }
 
-    const edges = [
-        ['golden_dome', 'sahn_enqelab'], ['sahn_enqelab', 'sahn_azadi'], ['sahn_enqelab', 'sahn_jomhuri'],
-        ['sahn_azadi', 'sahn_jamee'], ['sahn_jomhuri', 'sahn_jamee'], ['sahn_jomhuri', 'sahn_qods'],
-        ['sahn_qods', 'sahn_jamee'], ['sahn_qods', 'ravaq_imam'], ['ravaq_imam', 'sahn_jamee'],
-        ['sahn_jamee', 'bab_reza'], ['sahn_jamee', 'bab_javad'], ['sahn_jomhuri', 'bab_shirazi'],
-        ['sahn_enqelab', 'bab_tabarsi']
-    ];
+    try {
+        log("شروع اجرای اسکریپت اصلی.");
 
-    const map = L.map('map', {zoomControl: false}).setView([36.28805, 59.6157], 18);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 20}).addTo(map);
-    L.control.zoom({ position: 'topleft' }).addTo(map);
+        const places = [
+          { id:'sahn_enqelab', type:'صحن', name:'صحن انقلاب', lat:36.28805, lon:59.61560},
+          { id:'sahn_azadi', type:'صحن', name:'صحن آزادی', lat:36.28860, lon:59.61630},
+          { id:'sahn_jamee', type:'صحن', name:'صحن جامع رضوی', lat:36.2872, lon:59.6151},
+          { id:'sahn_jomhuri', type:'صحن', name:'صحن جمهوری', lat:36.28790, lon:59.6145},
+          { id:'sahn_qods', type:'صحن', name:'صحن قدس', lat:36.28750, lon:59.61520},
+          { id:'ravaq_imam', type:'رواق', name:'رواق امام خمینی', lat:36.2876, lon:59.6155},
+          { id:'golden_dome', type:'ضریح', name:'ضریح مطهر', lat:36.28805, lon:59.6157},
+          { id:'bab_reza', type:'باب', name:'باب‌الرضا (ورودی جنوبی)', lat:36.2868, lon:59.6150},
+          { id:'bab_javad', type:'باب', name:'باب‌الجواد (ورودی غربی)', lat:36.2874, lon:59.6144},
+          { id:'bab_tabarsi', type:'باب', name:'ورودی طبرسی (شمالی)', lat:36.2895, lon:59.615},
+          { id:'bab_shirazi', type:'باب', name:'ورودی شیرازی (شمال غربی)', lat:36.2888, lon:59.6143},
+        ];
 
-    const panel = document.getElementById('panel');
-    const panelContent = document.getElementById('panel-content');
-    const locateBtn = document.getElementById('locate-btn');
-    const routeLayers = L.layerGroup().addTo(map);
-    let selectionMarker = null, userMarker = null;
+        const edges = [
+            ['golden_dome', 'sahn_enqelab'], ['sahn_enqelab', 'sahn_azadi'], ['sahn_enqelab', 'sahn_jomhuri'],
+            ['sahn_azadi', 'sahn_jamee'], ['sahn_jomhuri', 'sahn_jamee'], ['sahn_jomhuri', 'sahn_qods'],
+            ['sahn_qods', 'sahn_jamee'], ['sahn_qods', 'ravaq_imam'], ['ravaq_imam', 'sahn_jamee'],
+            ['sahn_jamee', 'bab_reza'], ['sahn_jamee', 'bab_javad'], ['sahn_jomhuri', 'bab_shirazi'],
+            ['sahn_enqelab', 'bab_tabarsi']
+        ];
 
-    map.on('click', onMapClick);
-    locateBtn.addEventListener('click', locateUser);
+        log("در حال ساختن نقشه (L.map)...");
+        const map = L.map('map', {zoomControl: false}).setView([36.28805, 59.6157], 18);
+        log("نقشه با موفقیت ساخته شد.");
 
-    async function showRoute(tappedLocation, direction) {
-        clearRoute();
-        panelContent.innerHTML = `<p>در حال محاسبه مسیر...</p>`;
-        panel.classList.add('visible');
-        
-        try {
-            const userLocation = await getPosition();
-            const userPoint = { lat: userLocation.lat, lon: userLocation.lon, isInside: !!findNearestPlace(L.latLng(userLocation.lat, userLocation.lon), 20) };
-            const tappedPoint = { lat: tappedLocation.lat, lon: tappedLocation.lon, isInside: !!findNearestPlace(L.latLng(tappedLocation.lat, tappedLocation.lon)) };
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 20}).addTo(map);
+        log("لایه نقشه اضافه شد.");
+        L.control.zoom({ position: 'topleft' }).addTo(map);
 
-            const startNode = direction === 'from' ? tappedPoint : userPoint;
-            const endNode = direction === 'to' ? tappedPoint : userPoint;
+        const panel = document.getElementById('panel');
+        const panelContent = document.getElementById('panel-content');
+        const locateBtn = document.getElementById('locate-btn');
+        const routeLayers = L.layerGroup().addTo(map);
+        let selectionMarker = null, userMarker = null;
 
-            if (startNode.isInside && endNode.isInside) {
-                const startPlace = findNearestPlace(L.latLng(startNode.lat, startNode.lon));
-                const endPlace = findNearestPlace(L.latLng(endNode.lat, endNode.lon));
-                drawInternalPath(startPlace.id, endPlace.id);
-            } else if (!startNode.isInside && endNode.isInside) {
-                const nearestEntrance = findNearestEntrance(L.latLng(startNode.lat, startNode.lon));
-                const endPlace = findNearestPlace(L.latLng(endNode.lat, endNode.lon));
-                drawExternalPath([startNode.lat, startNode.lon], [nearestEntrance.lat, nearestEntrance.lon]);
-                drawInternalPath(nearestEntrance.id, endPlace.id, true);
-            } else {
-                drawExternalPath([startNode.lat, startNode.lon], [endNode.lat, endNode.lon]);
+        map.on('click', onMapClick);
+        locateBtn.addEventListener('click', locateUser);
+
+        async function locateUser() {
+            log("دکمه مکان‌یابی فشرده شد.");
+            try {
+                log("در حال درخواست موقعیت از مرورگر (getPosition)...");
+                const userLocation = await getPosition();
+                log(`موقعیت دریافت شد: ${userLocation.lat}, ${userLocation.lon}`);
+                const latlng = [userLocation.lat, userLocation.lon];
+                
+                if (!userMarker) {
+                    log("مارکر کاربر وجود ندارد. در حال ساخت مارکر جدید...");
+                    const userIcon = L.divIcon({ className: 'user-marker' });
+                    log("آیکون مارکر ساخته شد.");
+                    userMarker = L.marker(latlng, { icon: userIcon }).addTo(map);
+                    log("مارکر کاربر با موفقیت به نقشه اضافه شد.");
+                } else {
+                    log("مارکر کاربر از قبل وجود داشت. در حال به‌روزرسانی موقعیت...");
+                    userMarker.setLatLng(latlng);
+                    log("موقعیت مارکر به‌روزرسانی شد.");
+                }
+                
+                log("در حال زوم کردن روی موقعیت کاربر (flyTo)...");
+                map.flyTo(latlng, 18);
+                log("زوم با موفقیت انجام شد.");
+                hidePanel();
+
+            } catch (err) {
+                log(`خطا در تابع locateUser: ${err.message}`, true);
+                panel.classList.add('visible');
+                panelContent.innerHTML = `<p style="color:red"><b>خطا:</b> ${err.message}</p>`;
             }
-            hidePanel();
-
-        } catch (err) {
-            panelContent.innerHTML = `<p style="color:red"><b>خطا:</b> ${err.message}</p>`;
         }
-    }
+        
+        // --- سایر توابع برنامه (بدون تغییر) ---
+        function onMapClick(e) { /* ... */ }
+        function hidePanel() { /* ... */ }
+        // (کدهای این توابع و سایر توابع را از پاسخ قبلی اینجا قرار دهید)
+        // ...
 
-    function drawExternalPath(startLatLng, endLatLng) {
-        L.Routing.control({
-            waypoints: [L.latLng(startLatLng), L.latLng(endLatLng)],
-            addWaypoints: false, createMarker: () => null,
-            lineOptions: { styles: [{ color: '#c00', opacity: 0.9, weight: 6 }] },
-            router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1', profile: 'foot' })
-        }).addTo(routeLayers);
+    } catch(e) {
+        log(`خطای کلی در اجرای برنامه: ${e.message}`, true);
     }
     
-    function drawInternalPath(startId, endId, isDashed = false) {
-        const path = findShortestPath(startId, endId);
-        if (path) {
-            const latlngs = path.map(id => {
-                const p = places.find(place => place.id === id);
-                return [p.lat, p.lon];
-            });
-            const options = { color: '#c00', weight: 6, opacity: 0.8 };
-            if (isDashed) options.dashArray = '10, 10';
-            const polyline = L.polyline(latlngs, options).addTo(routeLayers);
-            map.fitBounds(polyline.getBounds(), {padding: [50, 50]});
+    // کدهای کامل سایر توابع برای اطمینان
+    function onMapClick(e) {
+        clearRoute();
+        const tappedPoint = e.latlng;
+        if (selectionMarker) { selectionMarker.setLatLng(tappedPoint); } 
+        else {
+            selectionMarker = L.circleMarker(tappedPoint, { color: '#007aff', fillColor: '#007aff', fillOpacity: 0.8, radius: 8 }).addTo(map);
         }
+        const nearestPlace = findNearestPlace(tappedPoint);
+        renderTappedLocationView(tappedPoint, nearestPlace);
     }
-    
+    function renderTappedLocationView(tappedPoint, nearestPlace) {
+        const title = nearestPlace ? nearestPlace.name : "نقطه انتخاب شده";
+        panelContent.innerHTML = `<h3>${title}</h3><div class="controls"><button id="route-to-btn">مسیر به اینجا</button><button id="route-from-btn" class="secondary">مسیر از اینجا</button></div>`;
+        document.getElementById('route-to-btn').addEventListener('click', () => showRoute({ lat: tappedPoint.lat, lon: tappedPoint.lng }, 'to'));
+        document.getElementById('route-from-btn').addEventListener('click', () => showRoute({ lat: tappedPoint.lat, lon: tappedPoint.lng }, 'from'));
+        panel.classList.add('visible');
+    }
+    function hidePanel() {
+        panel.classList.remove('visible');
+        if(selectionMarker) { map.removeLayer(selectionMarker); selectionMarker = null; }
+    }
+    async function getPosition(){
+      if (!navigator.geolocation) throw new Error('موقعیت‌یاب پشتیبانی نمی‌شود.');
+      return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+          err => {
+            let msg = 'خطا در دریافت موقعیت.';
+            if (err.code === 1) msg = 'شما دسترسی به موقعیت را مسدود کرده‌اید.';
+            if (err.code === 2) msg = 'سرویس موقعیت‌یاب (GPS) دستگاه شما خاموش است.';
+            if (err.code === 3) msg = 'زمان درخواست به پایان رسید.';
+            reject(new Error(msg));
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+      });
+    }
+    function clearRoute() { routeLayers.clearLayers(); }
+    function findNearestPlace(point, threshold = 70) {
+        let closest = null, minDistance = Infinity;
+        places.forEach(place => {
+            const distance = point.distanceTo(L.latLng(place.lat, place.lon));
+            if (distance < minDistance) { minDistance = distance; closest = place; }
+        });
+        return minDistance < threshold ? closest : null;
+    }
+    function findNearestEntrance(point) {
+        const entrances = places.filter(p => p.type === 'باب');
+        let closest = null, minDistance = Infinity;
+        entrances.forEach(entrance => {
+            const distance = point.distanceTo(L.latLng(entrance.lat, entrance.lon));
+            if (distance < minDistance) { minDistance = distance; closest = entrance; }
+        });
+        return closest;
+    }
     function findShortestPath(startId, endId) {
         const adj = {};
         places.forEach(p => adj[p.id] = []);
@@ -184,94 +255,59 @@
         }
         return null;
     }
-    
-    function findNearestPlace(point, threshold = 70) {
-        let closest = null, minDistance = Infinity;
-        places.forEach(place => {
-            const distance = point.distanceTo(L.latLng(place.lat, place.lon));
-            if (distance < minDistance) { minDistance = distance; closest = place; }
-        });
-        return minDistance < threshold ? closest : null;
-    }
-    
-    function findNearestEntrance(point) {
-        const entrances = places.filter(p => p.type === 'باب');
-        let closest = null, minDistance = Infinity;
-        entrances.forEach(entrance => {
-            const distance = point.distanceTo(L.latLng(entrance.lat, entrance.lon));
-            if (distance < minDistance) { minDistance = distance; closest = entrance; }
-        });
-        return closest;
-    }
-    
-    function clearRoute() {
-        routeLayers.clearLayers();
-    }
-    
-    async function locateUser() {
+    async function showRoute(tappedLocation, direction) {
+        clearRoute();
+        panelContent.innerHTML = `<p>در حال محاسبه مسیر...</p>`;
+        panel.classList.add('visible');
         try {
             const userLocation = await getPosition();
-            const latlng = [userLocation.lat, userLocation.lon];
-            
-            if (!userMarker) {
-                // >> راه حل قطعی: گزینه اشتباه 'iconSize' از اینجا حذف شده است <<
-                const userIcon = L.divIcon({ className: 'user-marker' });
-                userMarker = L.marker(latlng, { icon: userIcon }).addTo(map);
+            const userPoint = { lat: userLocation.lat, lon: userLocation.lon, isInside: !!findNearestPlace(L.latLng(userLocation.lat, userLocation.lon), 20) };
+            const tappedPoint = { lat: tappedLocation.lat, lon: tappedLocation.lon, isInside: !!findNearestPlace(L.latLng(tappedLocation.lat, tappedLocation.lon)) };
+            const startNode = direction === 'from' ? tappedPoint : userPoint;
+            const endNode = direction === 'to' ? tappedPoint : userPoint;
+            if (startNode.isInside && endNode.isInside) {
+                const startPlace = findNearestPlace(L.latLng(startNode.lat, startNode.lon));
+                const endPlace = findNearestPlace(L.latLng(endNode.lat, endNode.lon));
+                drawInternalPath(startPlace.id, endPlace.id);
+            } else if (!startNode.isInside && endNode.isInside) {
+                const nearestEntrance = findNearestEntrance(L.latLng(startNode.lat, startNode.lon));
+                const endPlace = findNearestPlace(L.latLng(endNode.lat, endNode.lon));
+                drawExternalPath([startNode.lat, startNode.lon], [nearestEntrance.lat, nearestEntrance.lon]);
+                drawInternalPath(nearestEntrance.id, endPlace.id, true);
+            } else {
+                drawExternalPath([startNode.lat, startNode.lon], [endNode.lat, endNode.lon]);
             }
-            userMarker.setLatLng(latlng);
-            map.flyTo(latlng, 18);
             hidePanel();
-
         } catch (err) {
-            panel.classList.add('visible');
             panelContent.innerHTML = `<p style="color:red"><b>خطا:</b> ${err.message}</p>`;
         }
     }
-
-    function onMapClick(e) {
-        clearRoute();
-        const tappedPoint = e.latlng;
-        if (selectionMarker) { selectionMarker.setLatLng(tappedPoint); } 
-        else {
-            selectionMarker = L.circleMarker(tappedPoint, { color: '#007aff', fillColor: '#007aff', fillOpacity: 0.8, radius: 8 }).addTo(map);
+    function drawExternalPath(startLatLng, endLatLng) {
+        L.Routing.control({
+            waypoints: [L.latLng(startLatLng), L.latLng(endLatLng)],
+            addWaypoints: false, createMarker: () => null,
+            lineOptions: { styles: [{ color: '#c00', opacity: 0.9, weight: 6 }] },
+            router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1', profile: 'foot' })
+        }).addTo(routeLayers);
+    }
+    function drawInternalPath(startId, endId, isDashed = false) {
+        const path = findShortestPath(startId, endId);
+        if (path) {
+            const latlngs = path.map(id => {
+                const p = places.find(place => place.id === id);
+                return [p.lat, p.lon];
+            });
+            const options = { color: '#c00', weight: 6, opacity: 0.8 };
+            if (isDashed) options.dashArray = '10, 10';
+            const polyline = L.polyline(latlngs, options).addTo(routeLayers);
+            map.fitBounds(polyline.getBounds(), {padding: [50, 50]});
         }
-        const nearestPlace = findNearestPlace(tappedPoint);
-        renderTappedLocationView(tappedPoint, nearestPlace);
-    }
-    
-    function renderTappedLocationView(tappedPoint, nearestPlace) {
-        const title = nearestPlace ? nearestPlace.name : "نقطه انتخاب شده";
-        panelContent.innerHTML = `<h3>${title}</h3><div class="controls"><button id="route-to-btn">مسیر به اینجا</button><button id="route-from-btn" class="secondary">مسیر از اینجا</button></div>`;
-        document.getElementById('route-to-btn').addEventListener('click', () => showRoute({ lat: tappedPoint.lat, lon: tappedPoint.lng }, 'to'));
-        document.getElementById('route-from-btn').addEventListener('click', () => showRoute({ lat: tappedPoint.lat, lon: tappedPoint.lng }, 'from'));
-        panel.classList.add('visible');
     }
 
-    function hidePanel() {
-        panel.classList.remove('visible');
-        if(selectionMarker) { map.removeLayer(selectionMarker); selectionMarker = null; }
-    }
-    
-    async function getPosition(){
-      if (!navigator.geolocation) throw new Error('موقعیت‌یاب پشتیبانی نمی‌شود.');
-      return new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-          err => {
-            let msg = 'خطا در دریافت موقعیت.';
-            if (err.code === 1) msg = 'شما دسترسی به موقعیت را مسدود کرده‌اید.';
-            if (err.code === 2) msg = 'سرویس موقعیت‌یاب (GPS) دستگاه شما خاموش است.';
-            if (err.code === 3) msg = 'زمان درخواست به پایان رسید.';
-            reject(new Error(msg));
-          },
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-        );
-      });
-    }
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then(reg => console.log('سرویس ورکر ثبت شد.')).catch(err => console.log('خطا:', err));
+        navigator.serviceWorker.register('./sw.js').then(reg => log('سرویس ورکر ثبت شد.')).catch(err => log('خطا در ثبت سرویس ورکر', true));
       });
     }
 </script>
