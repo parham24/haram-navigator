@@ -1,8 +1,10 @@
-پconst CACHE_NAME = 'haram-map-v16'; // <-- این عدد را در هر آپدیت تغییر دهید
+// حتما این نسخه را در هر آپدیت تغییر دهید
+const CACHE_NAME = 'haram-map-v16'; 
 
 const urlsToCache = [
   './',
   './index.html',
+  './manifest.json', // بهتر است این فایل هم کش شود
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
   'https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css',
@@ -57,12 +59,3 @@ self.addEventListener('fetch', event => {
       })
   );
 });
-
-
-
-
-
-
-
-
-
