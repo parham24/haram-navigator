@@ -64,19 +64,19 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 <script>
-    /* === داده‌ها === */
+    /* === داده‌ها (فقط از lat و lng استفاده می‌کنیم) === */
     const places = [
-        { id:'sahn_enqelab', type:'صحن', name:'صحن انقلاب', lat:36.28805, lng:59.61560},
-        { id:'sahn_azadi', type:'صحن', name:'صحن آزادی', lat:36.28860, lng:59.61630},
-        { id:'sahn_jamee', type:'صحن', name:'صحن جامع رضوی', lat:36.2872, lng:59.6151},
-        { id:'sahn_jomhuri', type:'صحن', name:'صحن جمهوری', lat:36.28790, lng:59.6145},
-        { id:'sahn_qods', type:'صحن', name:'صحن قدس', lat:36.28750, lng:59.61520},
-        { id:'ravaq_imam', type:'رواق', name:'رواق امام خمینی', lat:36.2876, lng:59.6155},
-        { id:'golden_dome', type:'ضریح', name:'ضریح مطهر', lat:36.28805, lng:59.6157},
-        { id:'bab_reza', type:'باب', name:'باب‌الرضا (ورودی جنوبی)', lat:36.2868, lng:59.6150},
-        { id:'bab_javad', type:'باب', name:'باب‌الجواد (ورودی غربی)', lat:36.2874, lng:59.6144},
-        { id:'bab_tabarsi', type:'باب', name:'ورودی طبرسی (شمالی)', lat:36.2895, lng:59.615},
-        { id:'bab_shirazi', type:'باب', name:'ورودی شیرازی (شمال غربی)', lat:36.2888, lng:59.6143},
+      { id:'sahn_enqelab', type:'صحن', name:'صحن انقلاب', lat:36.28805, lng:59.61560},
+      { id:'sahn_azadi', type:'صحن', name:'صحن آزادی', lat:36.28860, lng:59.61630},
+      { id:'sahn_jamee', type:'صحن', name:'صحن جامع رضوی', lat:36.2872, lng:59.6151},
+      { id:'sahn_jomhuri', type:'صحن', name:'صحن جمهوری', lat:36.28790, lng:59.6145},
+      { id:'sahn_qods', type:'صحن', name:'صحن قدس', lat:36.28750, lng:59.61520},
+      { id:'ravaq_imam', type:'رواق', name:'رواق امام خمینی', lat:36.2876, lng:59.6155},
+      { id:'golden_dome', type:'ضریح', name:'ضریح مطهر', lat:36.28805, lng:59.6157},
+      { id:'bab_reza', type:'باب', name:'باب‌الرضا (ورودی جنوبی)', lat:36.2868, lng:59.6150},
+      { id:'bab_javad', type:'باب', name:'باب‌الجواد (ورودی غربی)', lat:36.2874, lng:59.6144},
+      { id:'bab_tabarsi', type:'باب', name:'ورودی طبرسی (شمالی)', lat:36.2895, lng:59.615},
+      { id:'bab_shirazi', type:'باب', name:'ورودی شیرازی (شمال غربی)', lat:36.2888, lng:59.6143},
     ];
 
     const edges = [
@@ -87,7 +87,7 @@
         ['sahn_enqelab', 'bab_tabarsi']
     ];
 
-    /* === نقشه === */
+    /* === نقشه و عناصر UI === */
     const map = L.map('map', {zoomControl: false}).setView([36.28805, 59.6157], 18);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 20}).addTo(map);
     L.control.zoom({ position: 'topleft' }).addTo(map);
@@ -101,7 +101,8 @@
     map.on('click', onMapClick);
     locateBtn.addEventListener('click', locateUser);
 
-    // کلیک روی نقشه
+    /* === توابع اصلی برنامه (بازنویسی شده) === */
+
     function onMapClick(e) {
         clearAll();
         const tappedLatLng = e.latlng;
@@ -131,9 +132,11 @@
         panelContent.innerHTML = `<p>در حال محاسبه مسیر...</p>`;
         panel.classList.add('visible');
         try {
-            const userLocation = await getPosition();
+            const userLocation = await getPosition(); // {lat, lng}
             const userLatLng = L.latLng(userLocation.lat, userLocation.lng);
             const tappedLatLng = L.latLng(tappedLocation.lat, tappedLocation.lng);
+
+            if (!userLatLng || !tappedLatLng) throw new Error("مختصات نامعتبر است.");
 
             const startLatLng = (direction === 'from') ? tappedLatLng : userLatLng;
             const endLatLng = (direction === 'to') ? tappedLatLng : userLatLng;
@@ -148,7 +151,7 @@
             } else if (!startIsInside && endIsInside) {
                 const nearestEntrance = findNearestEntrance(startLatLng);
                 const endPlace = findNearestPlace(endLatLng);
-                // 🔹 اصلاح این خط:
+                if (!nearestEntrance || !endPlace) throw new Error("نقطه شروع یا پایان داخلی یافت نشد.");
                 await drawExternalPath(startLatLng, L.latLng(nearestEntrance.lat, nearestEntrance.lng));
                 drawInternalPath(nearestEntrance.id, endPlace.id, true);
             } else {
@@ -162,7 +165,7 @@
 
     async function locateUser() {
         try {
-            const userLocation = await getPosition();
+            const userLocation = await getPosition(); // {lat, lng}
             const latlng = L.latLng(userLocation.lat, userLocation.lng);
             if (!userMarker) {
                 const userIcon = L.divIcon({ className: 'user-marker' });
@@ -177,6 +180,7 @@
         }
     }
 
+    /* === توابع کمکی (Helper Functions) === */
     function drawExternalPath(startLatLng, endLatLng) {
         return new Promise((resolve, reject) => {
             const router = L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1', profile: 'foot' });
@@ -201,7 +205,7 @@
             map.fitBounds(polyline.getBounds(), {padding: [50, 50]});
         }
     }
-
+    
     function findShortestPath(startId, endId) {
         const adj = {}; places.forEach(p => adj[p.id] = []);
         edges.forEach(([u, v]) => { adj[u].push(v); adj[v].push(u); });
@@ -217,6 +221,7 @@
     }
     
     function findNearestPlace(point, threshold = 70) {
+        if (!point || typeof point.distanceTo !== 'function') return null; // بررسی استحکام
         let closest = null, minDistance = Infinity;
         places.forEach(place => {
             const distance = point.distanceTo(L.latLng(place.lat, place.lng));
@@ -226,6 +231,7 @@
     }
     
     function findNearestEntrance(point) {
+        if (!point || typeof point.distanceTo !== 'function') return null; // بررسی استحکام
         const entrances = places.filter(p => p.type === 'باب');
         let closest = null, minDistance = Infinity;
         entrances.forEach(entrance => {
