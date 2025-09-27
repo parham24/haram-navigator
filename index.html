@@ -42,8 +42,6 @@
             cursor: pointer; border: none;
         }
         #locate-btn svg { width: 24px; height: 24px; fill: #333; }
-
-        .leaflet-routing-container { display: none !important; }
         .user-marker {
             width: 20px; height: 20px; background-color: #007aff;
             border: 3px solid white; border-radius: 50%;
@@ -105,7 +103,6 @@
         clearAll();
         panelContent.innerHTML = `<p>در حال محاسبه مسیر...</p>`;
         panel.classList.add('visible');
-        
         try {
             const userLocation = await getPosition();
             const userPoint = { lat: userLocation.lat, lon: userLocation.lon, isInside: !!findNearestPlace(L.latLng(userLocation.lat, userLocation.lon), 20) };
@@ -120,28 +117,46 @@
             } else if (!startNode.isInside && endNode.isInside) {
                 const nearestEntrance = findNearestEntrance(L.latLng(startNode.lat, startNode.lon));
                 const endPlace = findNearestPlace(L.latLng(endNode.lat, endNode.lon));
-                drawExternalPath([startNode.lat, startNode.lon], [nearestEntrance.lat, nearestEntrance.lon]);
+                await drawExternalPath([startNode.lat, startNode.lon], [nearestEntrance.lat, nearestEntrance.lon]);
                 drawInternalPath(nearestEntrance.id, endPlace.id, true);
             } else {
-                drawExternalPath([startNode.lat, startNode.lon], [endNode.lat, endNode.lon]);
+                await drawExternalPath([startNode.lat, startNode.lon], [endNode.lat, endNode.lon]);
             }
             hidePanel(true);
         } catch (err) {
             panelContent.innerHTML = `<p style="color:red"><b>خطا:</b> ${err.message}</p>`;
         }
     }
-
-    function drawExternalPath(startLatLng, endLatLng) {
-        L.Routing.control({
-            waypoints: [L.latLng(startLatLng), L.latLng(endLatLng)],
-            addWaypoints: false,
-            createMarker: () => null,
-            lineOptions: { styles: [{ color: '#c00', opacity: 0.9, weight: 6 }] },
-            // >> راه حل: اضافه کردن مجدد "موتور مسیریاب" <<
-            router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1', profile: 'foot' })
-        }).addTo(routeLayers);
-    }
     
+    // >> راه حل: بازنویسی کامل این تابع <<
+    function drawExternalPath(startLatLng, endLatLng) {
+        return new Promise((resolve, reject) => {
+            const router = L.Routing.osrmv1({
+                serviceUrl: 'https://router.project-osrm.org/route/v1',
+                profile: 'foot'
+            });
+            
+            router.route([
+                L.latLng(startLatLng),
+                L.latLng(endLatLng)
+            ], (err, routes) => {
+                if (err) {
+                    reject(new Error("مسیریابی آنلاین ممکن نبود."));
+                    return;
+                }
+                if (routes && routes.length > 0) {
+                    const line = L.Routing.line(routes[0], {
+                        styles: [{ color: '#c00', opacity: 0.9, weight: 6 }]
+                    });
+                    routeLayers.addLayer(line);
+                    resolve();
+                } else {
+                    reject(new Error("هیچ مسیری یافت نشد."));
+                }
+            });
+        });
+    }
+
     function drawInternalPath(startId, endId, isDashed = false) {
         const path = findShortestPath(startId, endId);
         if (path) {
@@ -154,20 +169,15 @@
     }
     
     function findShortestPath(startId, endId) {
-        const adj = {};
-        places.forEach(p => adj[p.id] = []);
+        const adj = {}; places.forEach(p => adj[p.id] = []);
         edges.forEach(([u, v]) => { adj[u].push(v); adj[v].push(u); });
-        const queue = [[startId]];
-        const visited = new Set([startId]);
+        const queue = [[startId]]; const visited = new Set([startId]);
         while (queue.length > 0) {
             const path = queue.shift();
             const node = path[path.length - 1];
             if (node === endId) return path;
             for (const neighbor of adj[node]) {
-                if (!visited.has(neighbor)) {
-                    visited.add(neighbor);
-                    queue.push([...path, neighbor]);
-                }
+                if (!visited.has(neighbor)) { visited.add(neighbor); queue.push([...path, neighbor]); }
             }
         }
         return null;
