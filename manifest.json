@@ -4,13 +4,20 @@
   "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#0b6",
+  "theme_color": "#ffffff",
   "description": "مسیریاب داخلی و آفلاین حرم مطهر رضوی.",
   "icons": [
     {
       "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Imam_Reza_shrine_logo.svg/192px-Imam_Reza_shrine_logo.svg.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Imam_Reza_shrine_logo.svg/512px-Imam_Reza_shrine_logo.svg.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
