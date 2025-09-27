@@ -1,5 +1,5 @@
 // حتما این نسخه را در هر آپدیت تغییر دهید
-const CACHE_NAME = 'haram-map-v16'; 
+const CACHE_NAME = 'haram-map-v17'; 
 
 const urlsToCache = [
   './',
@@ -59,3 +59,4 @@ self.addEventListener('fetch', event => {
       })
   );
 });
+
