@@ -14,7 +14,6 @@
         html, body {
             height: 100%; margin: 0; padding: 0;
             overflow: hidden; font-family: 'Vazirmatn', Tahoma, sans-serif;
-            background-color: #f0f2f5;
         }
         #app-container { position: relative; width: 100%; height: 100%; }
         #map { width: 100%; height: 100%; background: #eee; }
@@ -23,50 +22,34 @@
             position: absolute; bottom: 0; left: 0; right: 0;
             background-color: white;
             border-top-left-radius: 16px; border-top-right-radius: 16px;
-            box-shadow: 0 -4px
-            12px rgba(0,0,0,0.1);
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
             transition: transform 0.3s ease-in-out;
-            transform: translateY(calc(100% - 220px)); 
+            transform: translateY(100%); /* >> حالت اولیه: کاملا مخفی << */
             z-index: 1000;
         }
-        #panel.expanded { transform: translateY(0); }
-        
-        #panel-handle {
-            padding: 12px; text-align: center; cursor: grab; border-bottom: 1px solid #eee;
+        #panel.visible {
+            transform: translateY(0);
         }
-        #panel-handle-bar {
-            width: 40px; height: 5px; background-color: #ccc;
-            border-radius: 3px; margin: 0 auto 8px;
+        #panel-content { 
+            padding: 16px; 
+            max-height: 90vh; 
+            overflow-y: auto;
+            text-align: center;
         }
-        #panel-handle-title { font-weight: bold; color: #333; }
+        .controls { display: flex; flex-direction: column; gap: 12px; margin-top: 16px;}
+        button {
+            width: 100%; padding: 14px; border-radius: 12px; border: 1px solid #ddd;
+            font-family: inherit; font-size: 16px; background-color: #0b6; color: white;
+            cursor: pointer; font-weight: bold;
+        }
+        button.secondary { background-color: #777; }
+        h3 { margin-top: 0; margin-bottom: 8px; }
+        p { margin: 0; color: #555; }
 
-        #panel-content { padding: 16px; max-height: calc(100vh - 80px); overflow-y: auto; }
-        .controls { display: flex; flex-direction: column; gap: 12px; }
-        .control-group { display: flex; align-items: center; gap: 8px; }
-        select, button {
-            width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd;
-            font-family: inherit; font-size: 15px; background-color: #f7f7f7;
-        }
-        button { background-color: #0b6; color: white; border: none; cursor: pointer; }
-        #swapBtn { width: 42px; flex-shrink: 0; padding: 8px; font-size: 20px; }
-        
-        .place { padding: 8px; border-bottom: 1px dashed #f0f0f0; cursor:pointer; }
-        .place:hover { background-color: #f9f9f9; }
-        .place h4 { margin:0; font-size: 14px; }
-        
-        .leaflet-routing-container {
-            background-color: transparent; box-shadow: none;
-            line-height: 1.6;
-        }
-        .leaflet-routing-alternatives-container { display: none; }
-        .leaflet-routing-summary { display: none; }
-        .leaflet-routing-instructions { font-size: 14px; }
-        
+        .leaflet-routing-container { display: none !important; }
         .user-marker {
-            width: 20px; height: 20px;
-            background-color: #007aff;
-            border: 3px solid white;
-            border-radius: 50%;
+            width: 20px; height: 20px; background-color: #007aff;
+            border: 3px solid white; border-radius: 50%;
             box-shadow: 0 0 8px rgba(0,0,0,0.5);
         }
     </style>
@@ -76,10 +59,6 @@
 <div id="app-container">
     <div id="map"></div>
     <div id="panel">
-        <div id="panel-handle">
-            <div id="panel-handle-bar"></div>
-            <div id="panel-handle-title">مسیریابی و جستجو</div>
-        </div>
         <div id="panel-content"></div>
     </div>
 </div>
@@ -102,147 +81,118 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 20, attribution: '© OpenStreetMap'}).addTo(map);
     L.control.zoom({ position: 'topleft' }).addTo(map);
 
-    let currentRouteControl = null;
-    let userMarker = null;
-    let watchId = null;
     const panel = document.getElementById('panel');
     const panelContent = document.getElementById('panel-content');
-    const panelHandle = document.getElementById('panel-handle');
-    const panelTitle = document.getElementById('panel-handle-title');
-    
-    panelHandle.addEventListener('click', () => panel.classList.toggle('expanded'));
+    let currentRouteControl = null;
+    let selectionMarker = null;
 
-    function renderInitialView() {
-        panelTitle.textContent = "مسیریابی و جستجو";
-        panelContent.innerHTML = `
-            <div class="controls">
-                <div class="control-group"><select id="start"></select><button id="swapBtn">⇄</button><select id="end"></select></div>
-                <button id="go-btn">نمایش مسیر</button>
-            </div><hr><div id="places-list"></div>`;
-        const startSel = document.getElementById('start'), endSel = document.getElementById('end');
-        addOptions(startSel); addOptions(endSel); renderPlacesList();
-        document.getElementById('go-btn').addEventListener('click', showRoute);
-        document.getElementById('swapBtn').addEventListener('click', () => { [startSel.value, endSel.value] = [endSel.value, startSel.value]; });
-        panel.style.transform = `translateY(calc(100% - 220px))`;
-        panel.classList.remove('expanded');
-    }
+    // >> راه حل ۱: فعال کردن لمس روی نقشه <<
+    map.on('click', onMapClick);
 
-    function addOptions(sel) {
-        sel.innerHTML = '<option value="__me">موقعیت فعلی من</option>';
-        places.forEach(p => {
-            const o = document.createElement('option');
-            o.value = p.id;
-            o.textContent = p.name;
-            sel.appendChild(o);
-        });
-    }
-
-    function renderPlacesList() {
-        const listEl = document.getElementById('places-list');
-        listEl.innerHTML = places.map(p => `
-            <div class="place" data-id="${p.id}">
-                <h4>${p.name} <small style="color:#888;">(${p.type})</small></h4>
-            </div>
-        `).join('');
+    function onMapClick(e) {
+        clearRoute();
+        const tappedPoint = e.latlng;
         
-        listEl.querySelectorAll('.place').forEach(el => {
-            el.addEventListener('click', () => {
-                const placeId = el.dataset.id;
-                document.getElementById('end').value = placeId;
-                const place = places.find(p => p.id === placeId);
-                map.setView([place.lat, place.lon], 19);
-                panel.style.transform = `translateY(calc(100% - 220px))`;
-                panel.classList.remove('expanded');
-            });
-        });
-    }
-
-    async function showRoute() {
-        const startVal = document.getElementById('start').value;
-        const endVal = document.getElementById('end').value;
-        if (startVal === endVal) { displayError('مبدا و مقصد نمی‌توانند یکسان باشند.'); return; }
-
-        clearRoute(true);
-        panelTitle.textContent = "در حال محاسبه مسیر...";
-        panelContent.innerHTML = `<p style="text-align:center;">لطفا منتظر بمانید...</p>`;
-        panel.classList.add('expanded');
-
-        let startPoint, endPoint;
-        try {
-            let userLocation = null;
-            if (startVal === '__me' || endVal === '__me') {
-                userLocation = await getPosition();
-            }
-            startPoint = (startVal === '__me') ? [userLocation.lat, userLocation.lon] : [places.find(p=>p.id===startVal).lat, places.find(p=>p.id===startVal).lon];
-            endPoint = (endVal === '__me') ? [userLocation.lat, userLocation.lon] : [places.find(p=>p.id===endVal).lat, places.find(p=>p.id===endVal).lon];
-        } catch (err) {
-            displayError(err.message, true);
-            return;
+        if (selectionMarker) {
+            selectionMarker.setLatLng(tappedPoint);
+        } else {
+            selectionMarker = L.circleMarker(tappedPoint, {
+                color: '#007aff',
+                fillColor: '#007aff',
+                fillOpacity: 0.8,
+                radius: 8
+            }).addTo(map);
         }
-      
-        currentRouteControl = L.Routing.control({
-            waypoints: [L.latLng(startPoint), L.latLng(endPoint)],
-            addWaypoints: false,
-            createMarker: function(i, waypoint, n) {
-                const label = i === 0 ? 'مبدا' : 'مقصد';
-                const markerColor = i === 0 ? 'green' : 'red';
-                return L.marker(waypoint.latLng, { 
-                    icon: L.icon({
-                        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${markerColor}.png`,
-                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
-                    })
-                }).bindPopup(`<b>${label}</b>`);
-            },
-            lineOptions: { styles: [{ color: '#c00', opacity: 0.9, weight: 6 }] },
-            language: 'fa' // فعال‌سازی زبان فارسی
-        }).addTo(map);
-      
-        currentRouteControl.on('routesfound', e => {
-            const summary = e.routes[0].summary;
-            const distance = summary.totalDistance < 1000 ? `${Math.round(summary.totalDistance).toLocaleString('fa-IR')} متر` : `${(summary.totalDistance / 1000).toLocaleString('fa-IR', {maximumFractionDigits: 1})} کیلومتر`;
-            const time = Math.round(summary.totalTime / 60).toLocaleString('fa-IR');
-            
-            panelTitle.textContent = `مسیر: ${distance} - حدود ${time} دقیقه`;
-            panelContent.innerHTML = `<button id="clear-btn" style="width:100%; margin-bottom: 12px; background-color: #777;">پاک کردن مسیر</button>`;
-            document.getElementById('clear-btn').addEventListener('click', clearRoute);
-
-            const instructionsContainer = currentRouteControl.getPlan().getContainer();
-            panelContent.appendChild(instructionsContainer);
-            panel.classList.add('expanded');
-            
-            startLiveTracking();
-        });
-        currentRouteControl.on('routingerror', () => displayError("مسیریابی ممکن نبود. اتصال اینترنت را بررسی کنید."));
+        
+        const nearestPlace = findNearestPlace(tappedPoint);
+        renderTappedLocationView(tappedPoint, nearestPlace);
     }
 
-    function clearRoute(isRouting = false) {
-        if (currentRouteControl) { map.removeControl(currentRouteControl); currentRouteControl = null; }
-        stopLiveTracking();
-        if (!isRouting) { renderInitialView(); }
-    }
+    // >> راه حل ۲: پیدا کردن نزدیک‌ترین مکان <<
+    function findNearestPlace(tappedPoint) {
+        let closestPlace = null;
+        let minDistance = Infinity;
 
-    function startLiveTracking() {
-        if (!navigator.geolocation) return;
-        watchId = navigator.geolocation.watchPosition((pos) => {
-            const latlng = [pos.coords.latitude, pos.coords.longitude];
-            if (!userMarker) {
-                const userIcon = L.divIcon({ className: 'user-marker', iconSize: [20, 20] });
-                userMarker = L.marker(latlng, { icon: userIcon }).addTo(map);
+        places.forEach(place => {
+            const placeLatLng = L.latLng(place.lat, place.lon);
+            const distance = tappedPoint.distanceTo(placeLatLng);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestPlace = place;
             }
-            userMarker.setLatLng(latlng);
-        }, (err) => {
-            console.error("خطای ردیابی موقعیت:", err.message);
-        }, { enableHighAccuracy: true });
+        });
+
+        // فقط اگر فاصله کمتر از یک حد معقول (مثلا ۷۰ متر) بود، آن را برگردان
+        return minDistance < 70 ? closestPlace : null;
     }
 
-    function stopLiveTracking() {
-        if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-        if (userMarker) { map.removeLayer(userMarker); userMarker = null; }
+    // >> راه حل ۳: نمایش پنل جدید <<
+    function renderTappedLocationView(tappedPoint, nearestPlace) {
+        const title = nearestPlace ? nearestPlace.name : "نقطه انتخاب شده";
+        const subtitle = nearestPlace ? `(${nearestPlace.type})` : "روی نقشه";
+
+        panelContent.innerHTML = `
+            <h3>${title}</h3>
+            <p>${subtitle}</p>
+            <div class="controls">
+                <button id="route-to-btn">مسیر به اینجا</button>
+                <button id="route-from-btn" class="secondary">مسیر از اینجا</button>
+            </div>
+        `;
+        
+        document.getElementById('route-to-btn').addEventListener('click', () => {
+            showRoute({ lat: tappedPoint.lat, lon: tappedPoint.lng }, 'to');
+        });
+        document.getElementById('route-from-btn').addEventListener('click', () => {
+            showRoute({ lat: tappedPoint.lat, lon: tappedPoint.lng }, 'from');
+        });
+
+        panel.classList.add('visible');
     }
-    
+
+    function hidePanel() {
+        panel.classList.remove('visible');
+        if(selectionMarker) {
+            map.removeLayer(selectionMarker);
+            selectionMarker = null;
+        }
+    }
+
+    async function showRoute(tappedLocation, direction) {
+        clearRoute();
+        panelContent.innerHTML = `<p>در حال دریافت موقعیت و محاسبه مسیر...</p>`;
+        
+        try {
+            const userLocation = await getPosition();
+            const userPoint = [userLocation.lat, userLocation.lon];
+            const tappedPoint = [tappedLocation.lat, tappedLocation.lon];
+            
+            const startPoint = direction === 'from' ? tappedPoint : userPoint;
+            const endPoint = direction === 'to' ? tappedPoint : userPoint;
+            
+            currentRouteControl = L.Routing.control({
+                waypoints: [L.latLng(startPoint), L.latLng(endPoint)],
+                addWaypoints: false,
+                createMarker: () => null, // مارکرهای پیش‌فرض را غیرفعال می‌کنیم
+                lineOptions: { styles: [{ color: '#c00', opacity: 0.9, weight: 6 }] }
+            }).addTo(map);
+            
+            hidePanel();
+
+        } catch (err) {
+            panelContent.innerHTML = `<p style="color:red"><b>خطا:</b> ${err.message}</p>`;
+        }
+    }
+
+    function clearRoute() {
+        if (currentRouteControl) {
+            map.removeControl(currentRouteControl);
+            currentRouteControl = null;
+        }
+    }
+
     async function getPosition(){
-      if (!navigator.geolocation) throw { code: -1, message: 'موقعیت‌یاب در این مرورگر پشتیبانی نمی‌شود.' };
+      if (!navigator.geolocation) throw new Error('موقعیت‌یاب پشتیبانی نمی‌شود.');
       return new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
           pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
@@ -251,51 +201,17 @@
             if (err.code === 1) msg = 'شما دسترسی به موقعیت را مسدود کرده‌اید.';
             if (err.code === 2) msg = 'سرویس موقعیت‌یاب (GPS) دستگاه شما خاموش است.';
             if (err.code === 3) msg = 'زمان درخواست به پایان رسید.';
-            reject({ code: err.code, message: msg });
+            reject(new Error(msg));
           },
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
       });
     }
 
-    function displayError(message, isLocationError = false) {
-        panelTitle.textContent = "خطا";
-        panelContent.innerHTML = `<p style="color:red; text-align:center;"><strong>${message}</strong></p>`;
-        if (isLocationError) {
-            panelContent.innerHTML += `<div class="controls"><button id="retryBtn">تلاش مجدد</button></div>`;
-            document.getElementById('retryBtn').addEventListener('click', showRoute);
-        }
-        panel.classList.add('expanded');
-    }
-
-    // --- فارسی‌سازی Leaflet Routing Machine ---
-    L.Routing.Localization['fa'] = {
-        directions: {
-            N: 'شمال', S: 'جنوب', E: 'شرق', W: 'غرب',
-            NE: 'شمال شرقی', SE: 'جنوب شرقی', SW: 'جنوب غربی', NW: 'شمال غربی',
-            Straight: 'مستقیم ادامه دهید', TurnLeft: 'به چپ بپیچید', TurnRight: 'به راست بپیچید',
-            SlightLeft: 'کمی به چپ', SlightRight: 'کمی به راست', SharpLeft: 'تند به چپ',
-            SharpRight: 'تند به راست', UTurn: 'دور بزنید', Head: 'به سمت {dir} بروید',
-        },
-        instructions: {
-            'Head': ['به سمت {dir} بروید', ' در {road}'],
-            'Continue': ['ادامه دهید', ' در {road}'],
-            'Turn': ['{modifier} بپیچید', ' در {road}'],
-            'WaypointReached': ['به ایستگاه رسیدید'],
-            'DestinationReached': ['شما به مقصد رسیدید'],
-        },
-        format: {
-            distance: (d) => d >= 1000 ? `${(d / 1000).toLocaleString('fa-IR', {maximumFractionDigits: 1})} کیلومتر` : `${Math.round(d).toLocaleString('fa-IR')} متر`
-        }
-    };
-
-    // --- اجرای اولیه برنامه ---
-    renderInitialView();
-
     // --- ثبت سرویس ورکر ---
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then(reg => console.log('سرویس ورکر ثبت شد.')).catch(err => console.log('خطا در ثبت سرویس ورکر:', err));
+        navigator.serviceWorker.register('./sw.js').then(reg => console.log('سرویس ورکر ثبت شد.')).catch(err => console.log('خطا:', err));
       });
     }
 </script>
