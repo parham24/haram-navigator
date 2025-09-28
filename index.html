@@ -101,6 +101,7 @@
     const locateBtn = document.getElementById('locate-btn');
     const routeLayers = L.layerGroup().addTo(map);
     let selectionMarker = null, userMarker = null;
+    let currentTappedLocation = null; // برای ذخیره نقطه کلیک شده
 
     map.on('click', onMapClick);
     locateBtn.addEventListener('click', locateUser);
@@ -109,18 +110,18 @@
 
     function onMapClick(e) {
         clearAll();
-        const tappedLatLng = e.latlng;
+        currentTappedLocation = e.latlng; // ذخیره نقطه کلیک شده
         
         // ایجاد مارکر برای نقطه انتخاب شده
-        selectionMarker = L.circleMarker(tappedLatLng, { 
+        selectionMarker = L.circleMarker(currentTappedLocation, { 
             color: '#007aff', 
             fillColor: '#007aff', 
             fillOpacity: 0.8, 
             radius: 8 
         }).addTo(map);
         
-        const nearestPlace = findNearestPlace(tappedLatLng);
-        renderTappedLocationView(tappedLatLng, nearestPlace);
+        const nearestPlace = findNearestPlace(currentTappedLocation);
+        renderTappedLocationView(currentTappedLocation, nearestPlace);
     }
 
     function renderTappedLocationView(tappedLatLng, nearestPlace) {
@@ -133,13 +134,33 @@
                 <button id="cancel-btn" class="secondary" style="background-color: #cc0000;">انصراف</button>
             </div>`;
         
-        document.getElementById('route-to-btn').addEventListener('click', () => showRoute(tappedLatLng, 'to'));
-        document.getElementById('route-from-btn').addEventListener('click', () => showRoute(tappedLatLng, 'from'));
+        document.getElementById('route-to-btn').addEventListener('click', () => {
+            // برای مسیر به اینجا، نقطه شروع موقعیت کاربر و نقطه پایان نقطه انتخاب شده است
+            getCurrentPosition()
+                .then(userLocation => {
+                    showRoute(currentTappedLocation, 'to', userLocation);
+                })
+                .catch(error => {
+                    showError('برای مسیریابی به این نقطه، ابتدا باید موقعیت شما مشخص شود. لطفاً دکمه "مکان فعلی من" را بزنید.', error);
+                });
+        });
+        
+        document.getElementById('route-from-btn').addEventListener('click', () => {
+            // برای مسیر از اینجا، نقطه شروع نقطه انتخاب شده و نقطه پایان موقعیت کاربر است
+            getCurrentPosition()
+                .then(userLocation => {
+                    showRoute(currentTappedLocation, 'from', userLocation);
+                })
+                .catch(error => {
+                    showError('برای مسیریابی از این نقطه، ابتدا باید موقعیت شما مشخص شود. لطفاً دکمه "مکان فعلی من" را بزنید.', error);
+                });
+        });
+        
         document.getElementById('cancel-btn').addEventListener('click', hidePanel);
         panel.classList.add('visible');
     }
 
-    async function showRoute(tappedLocation, direction) {
+    async function showRoute(tappedLocation, direction, userLocation) {
         console.log('شروع مسیریابی...');
         
         clearAll();
@@ -147,16 +168,14 @@
         panel.classList.add('visible');
         
         try {
-            // اعتبارسنجی ساده‌تر برای tappedLocation
+            // اعتبارسنجی نقطه انتخاب شده
             if (!tappedLocation || typeof tappedLocation.lat !== 'number' || typeof tappedLocation.lng !== 'number') {
                 throw new Error("مختصات نقطه انتخاب‌شده نامعتبر است.");
             }
 
-            // دریافت موقعیت کاربر با هندلینگ بهتر
-            const userLocation = await getPositionWithTimeout();
-            
+            // اعتبارسنجی موقعیت کاربر
             if (!userLocation || typeof userLocation.lat !== 'number' || typeof userLocation.lng !== 'number') {
-                throw new Error("موقعیت کاربر دریافت نشد. لطفاً GPS را فعال کنید.");
+                throw new Error("موقعیت کاربر معتبر نیست.");
             }
 
             const userLatLng = L.latLng(userLocation.lat, userLocation.lng);
@@ -215,11 +234,7 @@
             panelContent.innerHTML = `<div class="loading">در حال دریافت موقعیت</div>`;
             panel.classList.add('visible');
             
-            const userLocation = await getPositionWithTimeout();
-            
-            if (!userLocation || typeof userLocation.lat !== 'number' || typeof userLocation.lng !== 'number') {
-                throw new Error("موقعیت کاربر دریافت نشد.");
-            }
+            const userLocation = await getCurrentPosition();
             
             const latlng = L.latLng(userLocation.lat, userLocation.lng);
             
@@ -244,20 +259,9 @@
         }
     }
 
-    /* === توابع کمکی بهبود یافته === */
+    /* === توابع کمکی === */
     
-    function isPointInsideHarram(point) {
-        if (!point || typeof point.distanceTo !== 'function') return false;
-        
-        // بررسی ساده‌تر برای داخل حرم بودن
-        const harramCenter = L.latLng(36.28805, 59.6157);
-        const distance = point.distanceTo(harramCenter);
-        
-        // اگر فاصله از مرکز حرم کمتر از 200 متر باشد، داخل حرم در نظر گرفته می‌شود
-        return distance < 200;
-    }
-
-    function getPositionWithTimeout() {
+    function getCurrentPosition() {
         return new Promise((resolve, reject) => {
             if (!navigator.geolocation) {
                 reject(new Error('مرورگر شما از موقعیت‌یابی پشتیبانی نمی‌کند'));
@@ -293,6 +297,28 @@
                 }
             );
         });
+    }
+    
+    function isPointInsideHarram(point) {
+        if (!point || typeof point.distanceTo !== 'function') return false;
+        
+        // بررسی ساده‌تر برای داخل حرم بودن
+        const harramCenter = L.latLng(36.28805, 59.6157);
+        const distance = point.distanceTo(harramCenter);
+        
+        // اگر فاصله از مرکز حرم کمتر از 200 متر باشد، داخل حرم در نظر گرفته می‌شود
+        return distance < 200;
+    }
+
+    function showError(message, error) {
+        console.error('Error:', error);
+        panelContent.innerHTML = `
+            <p style="color:red"><b>خطا:</b> ${message}</p>
+            <div class="controls">
+                <button onclick="locateUser()" class="secondary">فعال‌سازی موقعیت</button>
+                <button onclick="hidePanel()" class="secondary" style="background-color: #cc0000;">بستن</button>
+            </div>`;
+        panel.classList.add('visible');
     }
 
     function drawExternalPath(startLatLng, endLatLng) {
@@ -419,14 +445,6 @@
     // توابع global برای استفاده در onclick
     window.hidePanel = hidePanel;
     window.locateUser = locateUser;
-
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('سرویس ورکر ثبت شد'))
-                .catch(err => console.log('خطا در ثبت سرویس ورکر:', err));
-        });
-    }
 </script>
 
 </body>
